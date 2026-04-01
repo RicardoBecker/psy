@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  emotionalCheckins EmotionalCheckin[]
+  journalEntries    JournalEntry[]
+
+  @@map("users")
+}
+
+model EmotionalCheckin {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  mood      Int      // 1-10 scale
+  energy    Int      // 1-10 scale
+  stress    Int      // 1-10 scale
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("emotional_checkins")
+}
+
+model JournalEntry {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("journal_entries")
+}
