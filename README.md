@@ -2,6 +2,8 @@
 
 Uma plataforma moderna de acompanhamento emocional construída com arquitetura fullstack modular.
 
+> ⚠️ **AVISO DE SEGURANÇA:** Para informações de desenvolvimento e credenciais reais, consulte a pasta `IA/` (leia primeiro `IA/00-SEGURANCA.md`). Esta documentação usa placeholders seguros.
+
 ## 📋 Índice
 - [🎯 Sobre o Projeto](#-sobre-o-projeto)
 - [🏗️ Arquitetura do Sistema](#️-arquitetura-do-sistema)
@@ -344,8 +346,8 @@ nano .env  # ou vi, code, etc.
 #### 🌍 Variáveis de Ambiente
 | Variável | Descrição | Valor Padrão |
 |----------|-----------|--------------|
-| `DATABASE_URL` | URL conexão PostgreSQL | `postgresql://postgres:postgres@db:5432/emotional_app` |
-| `JWT_SECRET` | Chave secreta JWT | `changeme_in_production_please` |
+| `DATABASE_URL` | URL conexão PostgreSQL | `[DATABASE_CREDENTIALS]` |
+| `JWT_SECRET` | Chave secreta JWT | `[JWT_SECRET_VALUE]` |
 | `PORT` | Porta do backend | `3001` |
 | `NODE_ENV` | Ambiente de execução | `development` |
 | `NEXT_PUBLIC_API_URL` | URL da API para frontend | `http://localhost:3001/api/v1` |
@@ -360,24 +362,24 @@ O sistema já possui usuários pré-configurados para testar todas as funcionali
 
 #### 🛡️ **ADMIN** - Controle Total do Sistema
 ```
-Email: admin@psico.com
-Senha: admin123
+Email: [ADMIN_EMAIL]
+Senha: [ADMIN_PASSWORD]
 Role: ADMIN
 Descrição: Pode gerenciar usuários, alterar roles e acessar todas as funcionalidades
 ```
 
 #### 🧠 **PSYCHOLOGIST** - Profissional de Psicologia
 ```
-Email: maria@psicologo.com
-Senha: psi123
+Email: [PSYCHOLOGIST_EMAIL]
+Senha: [PSYCHOLOGIST_PASSWORD]
 Role: PSYCHOLOGIST
 Descrição: Pode criar perfil profissional, gerenciar pacientes e solicitar vínculos
 ```
 
 #### 👤 **PATIENT** - Paciente Adulto
 ```
-Email: joao@paciente.com
-Senha: paciente123
+Email: [PATIENT_EMAIL]
+Senha: [PATIENT_PASSWORD]
 Role: PATIENT
 AgeGroup: ADULT (nascido em 1990)
 Descrição: Usuário padrão do sistema, pode fazer check-ins e manter diário
@@ -385,8 +387,8 @@ Descrição: Usuário padrão do sistema, pode fazer check-ins e manter diário
 
 #### 👨‍👩‍👧 **GUARDIAN** - Responsável Legal
 ```
-Email: ana@responsavel.com
-Senha: resp123
+Email: [GUARDIAN_EMAIL]
+Senha: [GUARDIAN_PASSWORD]
 Role: GUARDIAN
 AgeGroup: ADULT (nascido em 1980)
 Descrição: Pode gerenciar menores de idade e aprovar consentimentos
@@ -394,8 +396,8 @@ Descrição: Pode gerenciar menores de idade e aprovar consentimentos
 
 #### 👦 **ADOLESCENT** - Paciente Adolescente
 ```
-Email: pedro@menor.com
-Senha: menor123
+Email: [ADOLESCENT_EMAIL]
+Senha: [ADOLESCENT_PASSWORD]
 Role: PATIENT
 AgeGroup: ADOLESCENT (nascido em 2010 - 16 anos)
 Descrição: Menor de idade que necessita aprovação do responsável
@@ -403,8 +405,8 @@ Descrição: Menor de idade que necessita aprovação do responsável
 
 #### 👶 **CHILD** - Paciente Criança
 ```
-Email: sofia@crianca.com
-Senha: crianca123
+Email: [CHILD_EMAIL]
+Senha: [CHILD_PASSWORD]
 Role: PATIENT
 AgeGroup: CHILD (nascido em 2018 - 8 anos)
 Descrição: Menor de idade que necessita aprovação e acompanhamento do responsável
@@ -417,12 +419,12 @@ Descrição: Menor de idade que necessita aprovação e acompanhamento do respon
 # Testar login como ADMIN
 curl -X POST http://localhost:3001/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "admin@psico.com", "password": "admin123"}'
+  -d '{"email": "[ADMIN_EMAIL]", "password": "[ADMIN_PASSWORD]"}'
 
 # Testar login como PSYCHOLOGIST  
 curl -X POST http://localhost:3001/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "maria@psicologo.com", "password": "psi123"}'
+  -d '{"email": "[PSYCHOLOGIST_EMAIL]", "password": "[PSYCHOLOGIST_PASSWORD]"}'
 ```
 
 #### 2. **Testar Controle de Acesso**
@@ -641,9 +643,9 @@ npx prisma migrate status
 3. **Configurar:**
    - Host: `localhost`
    - Porta: `5432`
-   - Database: `emotional_app`
-   - Usuario: `postgres`
-   - Senha: `postgres`
+   - Database: `[DATABASE_NAME]`
+   - Usuario: `[DB_USER]`
+   - Senha: `[DB_PASSWORD]`
 
 ---
 
@@ -770,7 +772,7 @@ curl -f http://localhost:3001/api/v1/health
 curl -f http://localhost:3000
 
 # Testar conectividade do banco
-docker compose exec db psql -U postgres -d emotional_app -c "SELECT version();"
+docker compose exec db psql -U [DB_USER] -d [DATABASE_NAME] -c "SELECT version();"
 
 # Ver variáveis de ambiente
 docker compose exec backend printenv | grep -E "(DATABASE|JWT|PORT)"
@@ -874,8 +876,8 @@ services:
     ports:
       - "3001:3001"                     # Porta host:container
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/emotional_app
-      - JWT_SECRET=changeme_in_production_please
+      - DATABASE_URL=[DATABASE_CREDENTIALS]
+      - JWT_SECRET=[JWT_SECRET_VALUE]
       - PORT=3001
       - NODE_ENV=development
     volumes:
@@ -912,9 +914,9 @@ services:
     ports:
       - "5432:5432"                     # Acesso externo (DBeaver)
     environment:
-      - POSTGRES_DB=emotional_app
-      - POSTGRES_USER=postgres  
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=[DATABASE_NAME]
+      - POSTGRES_USER=[DB_USER]  
+      - POSTGRES_PASSWORD=[DB_PASSWORD]
     volumes:
       - postgres_data:/var/lib/postgresql/data  # Persistência
     networks:
