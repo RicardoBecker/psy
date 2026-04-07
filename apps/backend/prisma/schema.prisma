@@ -117,13 +117,13 @@ model PatientPsychologistLink {
 }
 
 model EmotionalCheckin {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  mood      Int      // 1-10 scale
-  energy    Int      // 1-10 scale
-  stress    Int      // 1-10 scale
-  notes     String?
-  createdAt DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  moodScore     Int      // 1-10 scale
+  energyLevel   Int      // 1-10 scale
+  anxietyLevel  Int      // 1-10 scale
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

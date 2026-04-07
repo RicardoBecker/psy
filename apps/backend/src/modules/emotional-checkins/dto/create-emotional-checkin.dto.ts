@@ -5,19 +5,19 @@ export class CreateEmotionalCheckinDto {
   @Min(1)
   @Max(10)
   @IsNotEmpty()
-  mood: number;
+  moodScore: number;
 
   @IsNumber()
   @Min(1)
   @Max(10)
   @IsNotEmpty()
-  energy: number;
+  energyLevel: number;
 
   @IsNumber()
   @Min(1)
   @Max(10)
   @IsNotEmpty()
-  stress: number;
+  anxietyLevel: number;
 
   @IsOptional()
   @IsString()

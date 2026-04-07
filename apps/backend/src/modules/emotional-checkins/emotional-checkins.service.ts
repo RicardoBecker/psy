@@ -100,9 +100,9 @@ export class EmotionalCheckinsService {
 
     if (checkins.length === 0) {
       return {
-        averageMood: 0,
-        averageEnergy: 0,
-        averageStress: 0,
+        averageMoodScore: 0,
+        averageEnergyLevel: 0,
+        averageAnxietyLevel: 0,
         totalCheckins: 0,
         lastCheckin: null,
       };
@@ -110,17 +110,17 @@ export class EmotionalCheckinsService {
 
     const sum = checkins.reduce(
       (acc, checkin) => ({
-        mood: acc.mood + checkin.mood,
-        energy: acc.energy + checkin.energy,
-        stress: acc.stress + checkin.stress,
+        moodScore: acc.moodScore + checkin.moodScore,
+        energyLevel: acc.energyLevel + checkin.energyLevel,
+        anxietyLevel: acc.anxietyLevel + checkin.anxietyLevel,
       }),
-      { mood: 0, energy: 0, stress: 0 }
+      { moodScore: 0, energyLevel: 0, anxietyLevel: 0 }
     );
 
     return {
-      averageMood: Math.round((sum.mood / checkins.length) * 100) / 100,
-      averageEnergy: Math.round((sum.energy / checkins.length) * 100) / 100,
-      averageStress: Math.round((sum.stress / checkins.length) * 100) / 100,
+      averageMoodScore: Math.round((sum.moodScore / checkins.length) * 100) / 100,
+      averageEnergyLevel: Math.round((sum.energyLevel / checkins.length) * 100) / 100,
+      averageAnxietyLevel: Math.round((sum.anxietyLevel / checkins.length) * 100) / 100,
       totalCheckins: checkins.length,
       lastCheckin: checkins[0],
     };

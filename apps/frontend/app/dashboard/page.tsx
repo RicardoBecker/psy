@@ -137,11 +137,11 @@ export default function DashboardPage() {
               </h3>
             </div>
             <p className="text-gray-600 mb-4">
-              Registre seu humor, energia e nível de stress
+              Registre seu humor, energia e nível de ansiedade
             </p>
             <Button 
               variant="primary"
-              onClick={() => alert('🚧 Funcionalidade em desenvolvimento')}
+              onClick={() => router.push('/dashboard/checkin')}
               className="!w-auto px-6"
             >
               Fazer Check-in
@@ -185,10 +185,10 @@ export default function DashboardPage() {
             </p>
             <Button 
               variant="primary"
-              onClick={() => alert('🚧 Funcionalidade em desenvolvimento')}
+              onClick={() => router.push('/dashboard/checkins')}
               className="!w-auto px-6"
             >
-              Ver Dados
+              Ver Check-ins
             </Button>
           </div>
         </div>
