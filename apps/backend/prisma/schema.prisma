@@ -7,17 +7,113 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at")
+enum Role {
+  ADMIN
+  PSYCHOLOGIST
+  PATIENT
+  GUARDIAN
+}
 
+enum AgeGroup {
+  ADULT
+  ADOLESCENT
+  CHILD
+}
+
+enum ConsentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ConsentRecordStatus {
+  ACTIVE
+  REVOKED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  role         Role      @default(PATIENT)
+  ageGroup     AgeGroup  @default(ADULT)
+  birthDate    DateTime?
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  // Relacionamentos existentes
   emotionalCheckins EmotionalCheckin[]
   journalEntries    JournalEntry[]
 
+  // Novos relacionamentos
+  psychologistProfile    PsychologistProfile?
+  guardianRelationships  GuardianRelationship[] @relation("GuardianUser")
+  minorRelationships     GuardianRelationship[] @relation("MinorUser")
+  consentRecords         ConsentRecord[]        @relation("UserConsent")
+  guardianConsentRecords ConsentRecord[]        @relation("GuardianConsent")
+  patientLinks           PatientPsychologistLink[] @relation("PatientLinks")
+  psychologistLinks      PatientPsychologistLink[] @relation("PsychologistLinks")
+
   @@map("users")
+}
+
+model GuardianRelationship {
+  id                 String        @id @default(uuid())
+  minorUserId        String        @map("minor_user_id")
+  guardianUserId     String        @map("guardian_user_id")
+  relationshipType   String        @map("relationship_type")
+  consentStatus      ConsentStatus @default(PENDING) @map("consent_status")
+  createdAt          DateTime      @default(now()) @map("created_at")
+
+  minorUser    User @relation("MinorUser", fields: [minorUserId], references: [id], onDelete: Cascade)
+  guardianUser User @relation("GuardianUser", fields: [guardianUserId], references: [id], onDelete: Cascade)
+
+  @@unique([minorUserId, guardianUserId])
+  @@map("guardian_relationships")
+}
+
+model ConsentRecord {
+  id            String              @id @default(uuid())
+  userId        String              @map("user_id")
+  guardianUserId String?            @map("guardian_user_id")
+  consentType   String              @map("consent_type")
+  status        ConsentRecordStatus @default(ACTIVE)
+  grantedAt     DateTime            @default(now()) @map("granted_at")
+  revokedAt     DateTime?           @map("revoked_at")
+
+  user     User  @relation("UserConsent", fields: [userId], references: [id], onDelete: Cascade)
+  guardian User? @relation("GuardianConsent", fields: [guardianUserId], references: [id])
+
+  @@map("consent_records")
+}
+
+model PsychologistProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique @map("user_id")
+  bio                String?
+  specialties        String[] @default([])
+  registrationNumber String?  @map("registration_number")
+  verified           Boolean  @default(false)
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("psychologist_profiles")
+}
+
+model PatientPsychologistLink {
+  id              String        @id @default(uuid())
+  patientId       String        @map("patient_id")
+  psychologistId  String        @map("psychologist_id")
+  consentStatus   ConsentStatus @default(PENDING) @map("consent_status")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  patient      User @relation("PatientLinks", fields: [patientId], references: [id], onDelete: Cascade)
+  psychologist User @relation("PsychologistLinks", fields: [psychologistId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, psychologistId])
+  @@map("patient_psychologist_links")
 }
 
 model EmotionalCheckin {

@@ -25,3 +25,31 @@ body {
     )
     rgb(var(--background-start-rgb));
 }
+
+/* Força texto escuro em inputs independente do modo escuro/claro */
+input[type="email"],
+input[type="password"],
+input[type="text"] {
+  color: #1f2937 !important; /* text-gray-800 */
+  background-color: white !important;
+}
+
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="text"]:focus {
+  color: #1f2937 !important; /* text-gray-800 */
+  background-color: white !important;
+}
+
+input[type="email"]::placeholder,
+input[type="password"]::placeholder,
+input[type="text"]::placeholder {
+  color: #6b7280 !important; /* text-gray-500 */
+}
+
+/* Garante que todos os inputs do formulário tenham texto legível */
+.login-form input,
+.register-form input {
+  color: #1f2937 !important;
+  background-color: white !important;
+}

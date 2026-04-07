@@ -8,7 +8,8 @@ Uma plataforma moderna de acompanhamento emocional construída com arquitetura f
 - [📁 Estrutura de Diretórios](#-estrutura-de-diretórios)
 - [🛠️ Stack Tecnológica](#️-stack-tecnológica)
 - [🚀 Como Executar](#-como-executar)
-- [📡 Documentação da API](#-documentação-da-api)
+- [� Usuários de Teste](#-usuários-de-teste)
+- [�📡 Documentação da API](#-documentação-da-api)
 - [🗄️ Banco de Dados](#️-banco-de-dados)
 - [🔧 Desenvolvimento](#-desenvolvimento)
 - [🐳 Docker e DevOps](#-docker-e-devops)
@@ -351,7 +352,107 @@ nano .env  # ou vi, code, etc.
 
 ---
 
-## 📡 Documentação da API
+## � Usuários de Teste
+
+O sistema já possui usuários pré-configurados para testar todas as funcionalidades do RBAC (controle de acesso baseado em roles). Use estes usuários para explorar diferentes níveis de acesso:
+
+### 🔑 Credenciais de Teste
+
+#### 🛡️ **ADMIN** - Controle Total do Sistema
+```
+Email: admin@psico.com
+Senha: admin123
+Role: ADMIN
+Descrição: Pode gerenciar usuários, alterar roles e acessar todas as funcionalidades
+```
+
+#### 🧠 **PSYCHOLOGIST** - Profissional de Psicologia
+```
+Email: maria@psicologo.com
+Senha: psi123
+Role: PSYCHOLOGIST
+Descrição: Pode criar perfil profissional, gerenciar pacientes e solicitar vínculos
+```
+
+#### 👤 **PATIENT** - Paciente Adulto
+```
+Email: joao@paciente.com
+Senha: paciente123
+Role: PATIENT
+AgeGroup: ADULT (nascido em 1990)
+Descrição: Usuário padrão do sistema, pode fazer check-ins e manter diário
+```
+
+#### 👨‍👩‍👧 **GUARDIAN** - Responsável Legal
+```
+Email: ana@responsavel.com
+Senha: resp123
+Role: GUARDIAN
+AgeGroup: ADULT (nascido em 1980)
+Descrição: Pode gerenciar menores de idade e aprovar consentimentos
+```
+
+#### 👦 **ADOLESCENT** - Paciente Adolescente
+```
+Email: pedro@menor.com
+Senha: menor123
+Role: PATIENT
+AgeGroup: ADOLESCENT (nascido em 2010 - 16 anos)
+Descrição: Menor de idade que necessita aprovação do responsável
+```
+
+#### 👶 **CHILD** - Paciente Criança
+```
+Email: sofia@crianca.com
+Senha: crianca123
+Role: PATIENT
+AgeGroup: CHILD (nascido em 2018 - 8 anos)
+Descrição: Menor de idade que necessita aprovação e acompanhamento do responsável
+```
+
+### 🧪 Como Testar
+
+#### 1. **Login com Diferentes Roles**
+```bash
+# Testar login como ADMIN
+curl -X POST http://localhost:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@psico.com", "password": "admin123"}'
+
+# Testar login como PSYCHOLOGIST  
+curl -X POST http://localhost:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "maria@psicologo.com", "password": "psi123"}'
+```
+
+#### 2. **Testar Controle de Acesso**
+- Faça login com cada usuário
+- Copie o `access_token` da resposta
+- Use o token para acessar endpoints protegidos
+
+```bash
+# Exemplo: Acessar endpoint que requer role ADMIN
+curl -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+     http://localhost:3001/api/v1/users
+```
+
+#### 3. **Testar Sistema de Idade**
+- Usuários menores de 18 anos (Pedro e Sofia) têm restrições especiais
+- Responsáveis (Ana) podem gerenciar relacionamentos com menores
+- Sistema automaticamente calcula `ageGroup` baseado na `birthDate`
+
+### 🔐 Funcionalidades por Role
+
+| Role | Funcionalidades Disponíveis |
+|------|----------------------------|
+| **ADMIN** | ✅ Gerenciar usuários<br>✅ Alterar roles<br>✅ Verificar psicólogos<br>✅ Visualizar todo sistema |
+| **PSYCHOLOGIST** | ✅ Criar perfil profissional<br>✅ Solicitar vínculos com pacientes<br>✅ Gerenciar lista de pacientes |
+| **PATIENT** | ✅ Check-ins emocionais<br>✅ Diário pessoal<br>✅ Solicitar acompanhamento psicológico |
+| **GUARDIAN** | ✅ Gerenciar relacionamentos com menores<br>✅ Aprovar consentimentos<br>✅ Funcionalidades de PATIENT |
+
+---
+
+## �📡 Documentação da API
 
 ### 🏥 Health Check
 ```http

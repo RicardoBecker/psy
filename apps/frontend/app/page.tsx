@@ -1,8 +1,58 @@
-import Link from 'next/link'
+'use client';
+import Link from 'next/link';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../providers/auth-provider';
 
 export default function Home() {
+  const { isAuthenticated, user, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Navigation */}
+      <nav className="bg-white/80 backdrop-blur-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <h1 className="text-xl font-bold text-blue-600">Emotional App</h1>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <Link 
+                href="/login"
+                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+              >
+                Entrar
+              </Link>
+              <Link 
+                href="/register"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                Criar conta
+              </Link>
+            </div>
+          </div>
+        </div>
+      </nav>
+
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto text-center">
           {/* Header */}
@@ -45,11 +95,22 @@ export default function Home() {
               </div>
             </div>
 
-            {/* CTA Button */}
+            {/* CTA Buttons */}
             <div className="space-y-4">
-              <button className="bg-primary-600 hover:bg-primary-700 text-white font-semibold text-lg px-12 py-4 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
-                Iniciar Jornada
-              </button>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <Link 
+                  href="/register"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg px-12 py-4 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                >
+                  Iniciar Jornada
+                </Link>
+                <Link 
+                  href="/login"
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold text-lg px-12 py-4 rounded-lg transition-colors duration-200"
+                >
+                  Já tenho conta
+                </Link>
+              </div>
               <p className="text-sm text-gray-500">
                 Gratuito para começar • Sem compromisso
               </p>
