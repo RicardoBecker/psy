@@ -48,14 +48,14 @@ Sistema fullstack moderno para bem-estar emocional com:
 
 ## 🔑 CREDENCIAIS DE TESTE
 **Usuário de Teste:**
-- Email: `test@example.com`
-- Senha: `teste123`
+- Email: `[TEST_USER_EMAIL]`
+- Senha: `[TEST_PASSWORD]`
 
 **Banco PostgreSQL:**
 - Host: `localhost:5432`
-- Database: `emotional_app`
-- User: `postgres`
-- Password: `postgres`
+- Database: `[DATABASE_NAME]`
+- User: `[DB_USER]`
+- Password: `[DB_PASSWORD]`
 
 ## 📊 DADOS NO BANCO
 **Tabelas principais:**

@@ -6,7 +6,18 @@ Esta pasta contém **documentação especializada para agentes de IA** trabalhar
 
 **⚠️ OBRIGATÓRIO:** Qualquer agente IA deve ler TODOS os documentos antes de fazer alterações no código.
 
+**🔒 IMPORTANTE:** Leia primeiro o arquivo `00-SEGURANCA.md` sobre práticas de segurança.
+
 ## 📋 **DOCUMENTOS DISPONÍVEIS**
+
+### 🔒 **00-SEGURANCA.md** ⚠️ **LER PRIMEIRO**
+**O que contém:** Práticas obrigatórias de segurança
+- Informações que NUNCA devem ser incluídas na documentação
+- Placeholders seguros para usar
+- Checklist de segurança antes de commits
+- Exemplos corretos vs incorretos
+
+**Quando ler:** ANTES de qualquer edição ou commit
 
 ### 📄 **01-PROJETO-OVERVIEW.md**
 **O que contém:** Visão geral completa do projeto
@@ -89,7 +100,7 @@ curl -I http://localhost:3001/api/v1/health
 # 3. Confirmar usuário teste ainda existe
 curl -X POST http://localhost:3001/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "test@example.com", "password": "teste123"}'
+  -d '{"email": "[USER_EMAIL]", "password": "[USER_PASSWORD]"}'
 ```
 
 ### 🛡️ **REGRAS DE OURO:**

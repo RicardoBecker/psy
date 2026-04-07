@@ -51,7 +51,7 @@ psico/
 - **SGBD:** PostgreSQL 16 Alpine
 - **ORM:** Prisma
 - **Porta:** 5432
-- **Database:** emotional_app
+- **Database:** [DATABASE_NAME]
 
 ### Infraestrutura
 - **Containerização:** Docker + Docker Compose

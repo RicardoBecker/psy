@@ -83,8 +83,8 @@ GET    /api/v1/journal-entries/stats   ✅ Estatísticas
 ### ✅ PostgreSQL Container
 - **Version:** 16-alpine ✅
 - **Port:** 5432 ✅  
-- **Database:** emotional_app ✅
-- **Credentials:** postgres:postgres ✅
+- **Database:** [DATABASE_NAME] ✅
+- **Credentials:** [DB_USER]:[DB_PASSWORD] ✅
 
 ### ✅ Schema Prisma
 ```sql
@@ -96,9 +96,9 @@ GET    /api/v1/journal-entries/stats   ✅ Estatísticas
 
 ### ✅ Dados de Teste Confirmados
 **Usuário teste criado:**
-- ID: `aabb3c2c-fde4-4212-a92e-eac579b0a79d`
-- Email: `test@example.com`
-- Senha: `teste123`
+- ID: `[USER_UUID]`
+- Email: `[TEST_EMAIL]`
+- Senha: `[TEST_PASSWORD]`
 - Status: ✅ Ativo no banco
 
 ## 🐳 DOCKER - COMPLETAMENTE OPERACIONAL

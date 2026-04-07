@@ -9,7 +9,7 @@
 4. **Confirme JWT funcionando:** Teste com endpoints protegidos
 
 ### 🛡️ REGRAS INVIOLÁVEIS
-- **NUNCA** altere ou delete o usuário de teste `test@example.com`
+- **NUNCA** altere ou delete o usuário de teste `[TEST_USER_EMAIL]`
 - **SEMPRE** mantenha a estrutura de pastas existente
 - **JAMAIS** modifique migrations already applied do Prisma
 - **SEMPRE** use TypeScript em todo novo código
@@ -26,13 +26,13 @@
 ```bash
 # Banco PostgreSQL
 Host: localhost:5432
-Database: emotional_app
-User: postgres  
-Password: postgres
+Database: [DATABASE_NAME]
+User: [DB_USER]  
+Password: [DB_PASSWORD]
 
 # Usuário de teste
-Email: test@example.com
-Senha: teste123
+Email: [TEST_USER_EMAIL]
+Senha: [TEST_PASSWORD]
 
 # URLs principais
 Backend: http://localhost:3001
@@ -125,7 +125,7 @@ journal_entries (
    curl -I http://localhost:3001/api/v1/health
    
    # Verificar dados no banco
-   docker compose exec db psql -U postgres -d emotional_app -c "SELECT COUNT(*) FROM users;"
+   docker compose exec db psql -U [DB_USER] -d [DATABASE_NAME] -c "SELECT COUNT(*) FROM users;"
    ```
 
 ## 🚨 SITUAÇÕES DE EMERGÊNCIA
@@ -153,7 +153,7 @@ docker compose exec backend npx prisma generate
 ### ❌ Banco corrompido
 ```bash
 docker compose down
-docker volume rm devops_postgres_data
+docker volume rm devops_[DB_SERVICE]_data
 docker compose up  # Vai recriar o banco
 # ATENÇÃO: Todos os dados serão perdidos!
 ```
@@ -234,7 +234,7 @@ curl -I http://localhost:3001/api/v1/health
 curl -I http://localhost:3000
 
 # 4. Banco acessível?
-docker compose exec db psql -U postgres -l
+docker compose exec db psql -U [DB_USER] -l
 
 # 5. Logs com erros?
 docker compose logs --tail 50
