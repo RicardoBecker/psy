@@ -8,30 +8,28 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
+  // 🔒 Cadastro público: sempre cria PATIENT. Roles privilegiadas só via
+  // fluxo administrativo (AdminUsersService.createUser), nunca por aqui.
   async create(createUserDto: CreateUserDto) {
-    const { password, ...userData } = createUserDto;
-    
-    // Validar que não está tentando criar ADMIN via API pública
-    if (createUserDto.role === Role.ADMIN) {
-      throw new ForbiddenException('Não é possível criar usuário ADMIN via API pública');
-    }
+    const { password, name, email, birthDate: birthDateInput } = createUserDto;
 
     const passwordHash = await bcrypt.hash(password, 10);
-    
+
     // Calcular ageGroup se birthDate foi fornecido
     let ageGroup: AgeGroup = AgeGroup.ADULT; // default
     let birthDate: Date | undefined;
-    
-    if (createUserDto.birthDate) {
-      birthDate = new Date(createUserDto.birthDate);
+
+    if (birthDateInput) {
+      birthDate = new Date(birthDateInput);
       ageGroup = calculateAgeGroup(birthDate);
     }
 
     const user = await this.prisma.user.create({
       data: {
-        ...userData,
+        name,
+        email,
         passwordHash,
-        role: createUserDto.role || Role.PATIENT, // default PATIENT
+        role: Role.PATIENT,
         ageGroup,
         birthDate,
       },
