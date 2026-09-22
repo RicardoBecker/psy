@@ -83,7 +83,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const error = searchParams.get('error');
     if (error === 'access_denied') {
-      toast.error('❌ Acesso negado! Você não tem permissão de administrador.');
+      toast.error('❌ Acesso negado! Você não tem permissão para acessar essa área.');
       // Limpar o parâmetro de erro da URL
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('error');
@@ -132,6 +132,17 @@ export default function DashboardPage() {
                   title="Área Administrativa"
                 >
                   👥 Admin
+                </button>
+              )}
+
+              {/* Link para Perfil Profissional - Apenas para PSYCHOLOGIST */}
+              {user.role === 'PSYCHOLOGIST' && (
+                <button
+                  onClick={() => router.push('/dashboard/psychologist/profile')}
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+                  title="Perfil Profissional"
+                >
+                  🧑‍⚕️ Meu Perfil
                 </button>
               )}
               
@@ -245,6 +256,54 @@ export default function DashboardPage() {
               Escrever
             </Button>
           </div>
+
+          {/* Meus Pacientes - Apenas para PSYCHOLOGIST */}
+          {user.role === 'PSYCHOLOGIST' && (
+            <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🧑‍⚕️</span>
+                </div>
+                <h3 className="ml-3 text-lg font-semibold text-gray-900">
+                  Meus Pacientes
+                </h3>
+              </div>
+              <p className="text-gray-600 mb-4">
+                Vincule pacientes e acompanhe convites pendentes
+              </p>
+              <Button
+                variant="primary"
+                onClick={() => router.push('/dashboard/psychologist/patients')}
+                className="!w-auto px-6 !bg-teal-600 hover:!bg-teal-700"
+              >
+                Gerenciar Pacientes
+              </Button>
+            </div>
+          )}
+
+          {/* Meus Psicólogos - Apenas para PATIENT */}
+          {user.role === 'PATIENT' && (
+            <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🧑‍⚕️</span>
+                </div>
+                <h3 className="ml-3 text-lg font-semibold text-gray-900">
+                  Meus Psicólogos
+                </h3>
+              </div>
+              <p className="text-gray-600 mb-4">
+                Veja seus vínculos e responda solicitações
+              </p>
+              <Button
+                variant="primary"
+                onClick={() => router.push('/dashboard/patient/psychologists')}
+                className="!w-auto px-6 !bg-teal-600 hover:!bg-teal-700"
+              >
+                Ver Psicólogos
+              </Button>
+            </div>
+          )}
 
           {/* Histórico */}
           <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow">

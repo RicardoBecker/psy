@@ -8,6 +8,12 @@ const protectedRoutes = ['/dashboard'];
 // 👑 Rotas administrativas (requerem role ADMIN)
 const adminRoutes = ['/dashboard/admin'];
 
+// 🔐 Rotas que requerem uma role específica
+const roleProtectedRoutes: { prefix: string; roles: string[] }[] = [
+  { prefix: '/dashboard/psychologist', roles: ['PSYCHOLOGIST'] },
+  { prefix: '/dashboard/patient', roles: ['PATIENT'] },
+];
+
 // 🌐 Rotas públicas que usuários autenticados devem ser redirecionados
 const authRoutes = ['/login', '/register'];
 
@@ -49,6 +55,23 @@ export function middleware(request: NextRequest) {
       const dashboardUrl = new URL('/dashboard', request.url);
       dashboardUrl.searchParams.set('error', 'access_denied');
       return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // 🔐 Proteger rotas restritas a roles específicas
+  for (const { prefix, roles } of roleProtectedRoutes) {
+    if (pathname.startsWith(prefix)) {
+      if (!isAuthenticated) {
+        const loginUrl = new URL('/login', request.url);
+        loginUrl.searchParams.set('redirect', pathname);
+        return NextResponse.redirect(loginUrl);
+      }
+
+      if (!roles.includes(userRole)) {
+        const dashboardUrl = new URL('/dashboard', request.url);
+        dashboardUrl.searchParams.set('error', 'access_denied');
+        return NextResponse.redirect(dashboardUrl);
+      }
     }
   }
 
