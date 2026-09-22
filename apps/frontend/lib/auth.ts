@@ -12,8 +12,9 @@ export const tokenStorage = {
     if (typeof window === 'undefined') return;
     localStorage.setItem('emotional_app_token', token);
     
-    // 🍪 Também salvar em cookies para o middleware
-    document.cookie = `emotional_app_token=${token}; path=/; max-age=${7 * 24 * 60 * 60 * 1000}`; // 7 dias
+    // 🍪 Salvar cookie para middleware (configuração simplificada para localhost)
+    const maxAge = 7 * 24 * 60 * 60; // 7 dias em segundos
+    document.cookie = `emotional_app_token=${token}; path=/; max-age=${maxAge}`;
   },
 
   remove: (): void => {
