@@ -9,6 +9,7 @@ import { UsersStats } from '@/components/admin/UsersStats';
 import { UsersFilters } from '@/components/admin/UsersFilters';
 import { UsersTable } from '@/components/admin/UsersTable';
 import { UsersPagination } from '@/components/admin/UsersPagination';
+import { CreateUserModal } from '@/components/admin/CreateUserModal';
 
 // 🏢 Página principal do dashboard administrativo de usuários
 export default function UsersAdminPage() {
@@ -29,6 +30,7 @@ export default function UsersAdminPage() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Estado para filtros
   const [filters, setFilters] = useState<GetUsersQuery>({
@@ -121,8 +123,12 @@ export default function UsersAdminPage() {
   };
 
   const handleCreateUser = () => {
-    toast.success('Modal de criação será implementado');
-    // TODO: Implementar modal de criação de usuário
+    setIsCreateModalOpen(true);
+  };
+
+  const handleCreateSuccess = async () => {
+    // Recarregar dados após criação bem-sucedida
+    await Promise.all([loadUsers(), loadUserStats()]);
   };
 
   const handleViewUser = (userId: string) => {
@@ -273,6 +279,13 @@ export default function UsersAdminPage() {
           )}
         </div>
       </div>
+
+      {/* 🪟 Modal de Criação de Usuário */}
+      <CreateUserModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={handleCreateSuccess}
+      />
     </div>
   );
 }

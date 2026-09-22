@@ -1,9 +1,14 @@
+// 🧩 UI Components - Componentes reutilizáveis da interface
+
 // 🔄 Loading Spinner Component
 export const LoadingSpinner = () => (
   <div className="flex items-center justify-center">
     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
   </div>
 );
+
+// 🪟 Modal Component
+export { Modal } from './Modal';
 
 // 🔘 Button Component
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
