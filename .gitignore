@@ -99,3 +99,10 @@ jspm_packages/
 # OS
 .DS_Store
 Thumbs.db
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Kodai tooling artifacts
+.kodai/
+.kodai-nexus/
