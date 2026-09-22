@@ -1,6 +1,8 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum, IsDateString } from 'class-validator';
-import { Role } from '../../../common/types/auth.types';
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsDateString } from 'class-validator';
 
+// 🔒 Usado apenas pelo cadastro público (UsersService.create): não aceita
+// `role` — toda conta criada por este caminho é PATIENT. Criação de contas
+// com outras roles é exclusiva do fluxo administrativo protegido.
 export class CreateUserDto {
   @IsNotEmpty()
   @IsString()
@@ -12,10 +14,6 @@ export class CreateUserDto {
   @IsString()
   @MinLength(6)
   password: string;
-
-  @IsOptional()
-  @IsEnum(Role)
-  role?: Role;
 
   @IsOptional()
   @IsDateString()

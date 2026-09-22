@@ -95,7 +95,8 @@ Eliminar emissão de tokens para identidades não verificadas e impedir que usu�
 
 ### CR-01.2 — Restringir cadastro público à role PATIENT
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `role` removido de `RegisterDto` e de `CreateUserDto` (usado só pelo cadastro público); `UsersService.create` agora grava `role: Role.PATIENT` hard-coded, sem ler nada do payload. O `ValidationPipe` global (`forbidNonWhitelisted: true`) já configurado em `main.ts` rejeita com 400 qualquer propriedade extra (`role`, `isActive`, `verified`, `id`, ...) antes mesmo de chegar no service. Endpoint administrativo (`AdminUsersService.createUser`) usa Prisma diretamente, caminho separado, não afetado. Testes novos: `register.controller.spec.ts` (7 casos: payload válido sem role, `role: ADMIN/PSYCHOLOGIST/GUARDIAN` → 400 e `UsersService.create` nunca chamado, mass-assignment de `isActive/verified/id` → 400) e `users.service.spec.ts` (2 casos: `role` sempre persistido como `PATIENT`, inclusive se algo tentar contrabandear `role: ADMIN` no objeto). 13/13 testes verdes na suíte completa. Frontend não precisou de alteração: nunca enviava `role` no cadastro.
 - **Prioridade:** P1 — bloqueador de release
 - **Origem:** registro público aceita `PSYCHOLOGIST` e `GUARDIAN`.
 - **User story:** Como administrador, quero que todo cadastro público nasça como paciente, para que roles privilegiadas sejam concedidas somente por fluxo administrativo.

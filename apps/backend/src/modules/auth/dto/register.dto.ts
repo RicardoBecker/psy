@@ -1,6 +1,8 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum, IsDateString } from 'class-validator';
-import { Role } from '../../../common/types/auth.types';
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsDateString } from 'class-validator';
 
+// 🔒 Cadastro público não aceita `role`: toda conta nasce PATIENT.
+// Roles privilegiadas (ADMIN, PSYCHOLOGIST, GUARDIAN) só são concedidas
+// pelo fluxo administrativo protegido (ver AdminUsersService.createUser).
 export class RegisterDto {
   @IsNotEmpty()
   @IsString()
@@ -12,10 +14,6 @@ export class RegisterDto {
   @IsString()
   @MinLength(6)
   password: string;
-
-  @IsOptional()
-  @IsEnum(Role)
-  role?: Role;
 
   @IsOptional()
   @IsDateString()
