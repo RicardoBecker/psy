@@ -17,8 +17,9 @@ async function bootstrap() {
   app.enableCors();
 
   const port = process.env.PORT || 3001;
-  await app.listen(port);
-  console.log(`🚀 Backend rodando na porta ${port}`);
+  // 🌐 Bind explícito em todas as interfaces para ser acessível via IP na rede local
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Backend rodando na porta ${port} (acessível na rede local)`);
 }
 
 bootstrap();
