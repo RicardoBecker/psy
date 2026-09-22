@@ -214,7 +214,9 @@ Garantir evolução segura do schema sem perda do histórico emocional.
 
 ### CR-03.1 — Corrigir a migration dos campos de check-in com backfill
 
-- **Status:** TODO
+- **Status:** DONE
+- **Pré-condição verificada com o responsável pelo produto (2026-09-22):** a migration `20260407142459_update_emotional_checkin_fields` nunca foi aplicada fora de bancos de desenvolvimento descartáveis (sem CI/CD, sem deploy, sem staging/produção no repositório) — confirmado explicitamente antes de qualquer alteração. `stress`→`anxietyLevel` é o mesmo conceito/escala (1-10), apenas renomeado — também confirmado explicitamente, e consistente com o comentário `// 1-10 scale` presente nos três campos desde o commit inicial do projeto.
+- **Evidência:** SQL da migration reescrito no mesmo arquivo (nunca aplicada fora de descartáveis, então não há checksum de ambiente compartilhado a preservar) seguindo expand → backfill → contract: adiciona `moodScore`/`energyLevel`/`anxietyLevel` como nullable, copia `mood`→`moodScore`, `energy`→`energyLevel`, `stress`→`anxietyLevel`, aplica `NOT NULL` (que falha sozinho se sobrar nulo, validando o backfill) e só então remove `mood`/`energy`/`stress`. Novo teste `src/prisma/checkin-fields-migration.e2e.spec.ts` roda contra PostgreSQL 16 real (via `psql`, mesmo Postgres do `devOps/docker-compose.yml`): (1) aplica as migrations `init` + `add_rbac_and_profiles` + a migration alvo do zero em banco vazio, sem erro; (2) aplica as duas primeiras, insere 3 check-ins fixture com `mood/energy/stress`, roda a migration alvo, e confirma as 3 linhas preservadas com `moodScore/energyLevel/anxietyLevel` idênticos aos valores originais, e que as colunas antigas realmente sumiram do schema. Adiciona `pg`/`@types/pg` como devDependency (não existia driver Postgres direto no projeto). 36/36 testes verdes na suíte completa (2 novos deste rehearsal).
 - **Prioridade:** P1 — bloqueador de release
 - **Origem:** migration remove três colunas e adiciona três campos obrigatórios sem backfill.
 - **User story:** Como usuário, quero que meus check-ins existentes sejam preservados durante uma atualização do banco.
