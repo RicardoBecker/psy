@@ -4,15 +4,6 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { Role, AgeGroup, calculateAgeGroup } from '../../common/types/auth.types';
 import * as bcrypt from 'bcrypt';
 
-interface CreateSocialUserDto {
-  email: string;
-  name: string;
-  provider: string;
-  providerId: string;
-  picture?: string;
-  birthDate?: Date;
-}
-
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
@@ -52,40 +43,6 @@ export class UsersService {
         ageGroup: true,
         birthDate: true,
         isActive: true,
-        createdAt: true,
-      },
-    });
-
-    return user;
-  }
-
-  // 🌐 Criar usuário social (Google/Apple)
-  async createSocialUser(socialUserData: CreateSocialUserDto) {
-    // Calcular ageGroup se birthDate foi fornecido
-    let ageGroup: AgeGroup = AgeGroup.ADULT; // default
-    if (socialUserData.birthDate) {
-      ageGroup = calculateAgeGroup(socialUserData.birthDate);
-    }
-
-    const user = await this.prisma.user.create({
-      data: {
-        name: socialUserData.name,
-        email: socialUserData.email,
-        // Para usuários sociais, usamos um hash vazio como placeholder
-        passwordHash: 'SOCIAL_AUTH_USER', // Placeholder para indicar que é usuário social
-        role: Role.PATIENT, // usuários sociais são pacientes por padrão
-        ageGroup,
-        birthDate: socialUserData.birthDate,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        ageGroup: true,
-        birthDate: true,
-        isActive: true,
-        passwordHash: true,
         createdAt: true,
       },
     });
