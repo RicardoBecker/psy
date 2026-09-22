@@ -184,7 +184,8 @@ Garantir que role e status atuais do banco sejam usados pelo backend e que desat
 
 ### CR-02.2 — Resolver role e status atuais em toda requisição autenticada
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `JwtStrategy.validate` agora usa `payload.sub` só como identificador e busca o usuário atual via `UsersService.findById` a cada requisição autenticada; lança `UnauthorizedException` se o usuário não existir mais ou `isActive` for `false`. `req.user.role`/`ageGroup`/`email` passam a vir sempre do banco, nunca do payload do token. Testes novos: `jwt.strategy.spec.ts` (4 casos unitários: role do banco prevalece sobre claim `ADMIN` obsoleta do token, 401 para usuário desativado, 401 para usuário removido, nenhum campo do payload vaza pro resultado) e `session-freshness.e2e.spec.ts` (4 casos E2E cruciais: **o mesmo token JWT**, assinado uma única vez como ADMIN ativo, primeiro acessa uma rota admin-only com sucesso; depois que o banco marca o usuário como PATIENT, o mesmo token recebe 403 na rota admin-only; depois que o banco desativa o usuário, o mesmo token recebe 401; depois que o usuário é removido do banco, o mesmo token recebe 401 — tudo sem gerar um token novo, provando revogação imediata). 34/34 testes verdes na suíte completa.
 - **Prioridade:** P1 — bloqueador de release
 - **Origem:** `JwtStrategy` confia por sete dias em role e status presentes no token.
 - **User story:** Como administrador, quero que uma desativação ou mudança de role tenha efeito na próxima chamada à API.
