@@ -1,21 +1,24 @@
 services:
   # Backend service
   backend:
-    build: 
+    build:
       context: ../apps/backend
       dockerfile: ../../devOps/backend/Dockerfile
+    # 🗄️ Aplica migrations pendentes antes de subir o servidor
+    command: sh -c "npx prisma migrate deploy && npm run dev"
     ports:
       - "3001:3001"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/emotional_app
-      - JWT_SECRET=changeme_in_production_please
+      - JWT_SECRET=${JWT_SECRET:-changeme_in_production_please}
       - PORT=3001
       - NODE_ENV=development
     volumes:
       - ../apps/backend:/app
       - backend_node_modules:/app/node_modules
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - emotional_network
 
@@ -24,10 +27,15 @@ services:
     build:
       context: ../apps/frontend
       dockerfile: ../../devOps/frontend/Dockerfile
+    # 🌐 Bind explícito em todas as interfaces para ser acessível via IP na rede local
+    command: sh -c "npm run dev -- -H 0.0.0.0"
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
+      # NEXT_PUBLIC_API_URL propositalmente não fixado: lib/api.ts resolve a URL
+      # da API em tempo de execução usando o host que serviu a página, o que
+      # permite acessar o app via IP de outra máquina na rede local. Defina
+      # esta variável apenas se precisar apontar para uma API em outro host.
       - NODE_ENV=development
     volumes:
       - ../apps/frontend:/app
@@ -50,6 +58,11 @@ services:
       - POSTGRES_PASSWORD=postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d emotional_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - emotional_network
 

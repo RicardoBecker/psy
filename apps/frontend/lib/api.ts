@@ -1,7 +1,16 @@
 // 🌐 API Client centralizado para comunicação com backend
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+// 🌐 Resolve a URL da API em tempo de execução no navegador, usando o mesmo
+// host que serviu o frontend (necessário para acesso via IP na rede local,
+// já que NEXT_PUBLIC_API_URL fixo em "localhost" quebraria em outra máquina).
+function resolveApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') return `http://${window.location.hostname}:3001/api/v1`;
+  return 'http://localhost:3001/api/v1';
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 // 🔧 Configuração do cliente HTTP
 export const api = axios.create({
