@@ -1,19 +1,95 @@
 'use client';
 // 📊 Dashboard Principal - Área autenticada
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../providers/auth-provider';
 import { Button, UserProfileBadges, getRoleDisplayName } from '../../components/ui';
+import { checkinsApi, EmotionalCheckin, CheckinStats } from '../../lib/checkins-api';
+import { journalApi, JournalEntry, JournalStats } from '../../lib/journal-api';
+
+interface DashboardStats {
+  totalCheckins: number;
+  totalJournalEntries: number;
+  daysOfUse: number;
+  wellbeingAverage: number | null;
+}
 
 export default function DashboardPage() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [recentCheckin, setRecentCheckin] = useState<EmotionalCheckin | null>(null);
+  const [recentEntry, setRecentEntry] = useState<JournalEntry | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);
+
+  const loadDashboardData = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [checkinsList, checkinsStats, journalStats] = await Promise.all([
+        checkinsApi.list().catch(() => [] as EmotionalCheckin[]),
+        checkinsApi.getStats().catch(() => null as CheckinStats | null),
+        journalApi.getStats().catch(() => null as JournalStats | null),
+      ]);
+
+      const createdAt = new Date(user.createdAt);
+      const daysOfUse = Math.max(
+        1,
+        Math.ceil((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
+      );
+
+      // 💚 Bem-estar médio: combina humor, energia e o inverso da ansiedade (escala 1-10)
+      const wellbeingAverage =
+        checkinsStats && checkinsStats.totalCheckins > 0
+          ? Math.round(
+              ((checkinsStats.averageMoodScore +
+                checkinsStats.averageEnergyLevel +
+                (11 - checkinsStats.averageAnxietyLevel)) /
+                3) *
+                10
+            ) / 10
+          : null;
+
+      setDashboardStats({
+        totalCheckins: checkinsList.length,
+        totalJournalEntries: journalStats?.totalEntries ?? 0,
+        daysOfUse,
+        wellbeingAverage,
+      });
+      setRecentCheckin(checkinsStats?.lastCheckin ?? null);
+      setRecentEntry(journalStats?.lastEntry ?? null);
+    } catch (error) {
+      console.error('Erro ao carregar dados do dashboard:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      loadDashboardData();
+    }
+  }, [isAuthenticated, user, loadDashboardData]);
+
+  // 🚨 Verificar se há erro de acesso negado
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error === 'access_denied') {
+      toast.error('❌ Acesso negado! Você não tem permissão de administrador.');
+      // Limpar o parâmetro de erro da URL
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('error');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+  }, [searchParams]);
 
   if (isLoading) {
     return (
@@ -161,10 +237,10 @@ export default function DashboardPage() {
             <p className="text-gray-600 mb-4">
               Escreva sobre seus pensamentos e experiências
             </p>
-            <Button 
+            <Button
               variant="primary"
-              onClick={() => alert('🚧 Funcionalidade em desenvolvimento')}
-              className="!w-auto px-6"
+              onClick={() => router.push('/dashboard/journal')}
+              className="!w-auto px-6 !bg-purple-600 hover:!bg-purple-700"
             >
               Escrever
             </Button>
@@ -239,28 +315,40 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="text-center">
-              <p className="text-3xl font-bold text-blue-600">0</p>
+              <p className="text-3xl font-bold text-blue-600">
+                {loadingStats ? '…' : dashboardStats?.totalCheckins ?? 0}
+              </p>
               <p className="text-sm text-gray-600">Check-ins realizados</p>
             </div>
           </div>
-          
+
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="text-center">
-              <p className="text-3xl font-bold text-purple-600">0</p>
+              <p className="text-3xl font-bold text-purple-600">
+                {loadingStats ? '…' : dashboardStats?.totalJournalEntries ?? 0}
+              </p>
               <p className="text-sm text-gray-600">Entradas do diário</p>
             </div>
           </div>
-          
+
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="text-center">
-              <p className="text-3xl font-bold text-green-600">0</p>
+              <p className="text-3xl font-bold text-green-600">
+                {loadingStats ? '…' : dashboardStats?.daysOfUse ?? 0}
+              </p>
               <p className="text-sm text-gray-600">Dias de uso</p>
             </div>
           </div>
-          
+
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="text-center">
-              <p className="text-3xl font-bold text-orange-600">-</p>
+              <p className="text-3xl font-bold text-orange-600">
+                {loadingStats
+                  ? '…'
+                  : dashboardStats?.wellbeingAverage != null
+                  ? `${dashboardStats.wellbeingAverage}/10`
+                  : '-'}
+              </p>
               <p className="text-sm text-gray-600">Bem-estar médio</p>
             </div>
           </div>
@@ -271,13 +359,65 @@ export default function DashboardPage() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Atividade Recente
           </h3>
-          <div className="text-center py-12 text-gray-500">
-            <span className="text-6xl mb-4 block">📝</span>
-            <p className="text-lg">Nenhuma atividade ainda</p>
-            <p className="text-sm mt-2">
-              Comece fazendo seu primeiro check-in emocional ou escrevendo no diário!
-            </p>
-          </div>
+          {!recentCheckin && !recentEntry ? (
+            <div className="text-center py-12 text-gray-500">
+              <span className="text-6xl mb-4 block">📝</span>
+              <p className="text-lg">Nenhuma atividade ainda</p>
+              <p className="text-sm mt-2">
+                Comece fazendo seu primeiro check-in emocional ou escrevendo no diário!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {recentCheckin && (
+                <button
+                  onClick={() => router.push('/dashboard/checkins')}
+                  className="w-full text-left flex items-center justify-between p-4 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">😊</span>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        Check-in: humor {recentCheckin.moodScore}/10, energia{' '}
+                        {recentCheckin.energyLevel}/10, ansiedade {recentCheckin.anxietyLevel}/10
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(recentCheckin.createdAt).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              )}
+              {recentEntry && (
+                <button
+                  onClick={() => router.push(`/dashboard/journal/${recentEntry.id}/edit`)}
+                  className="w-full text-left flex items-center justify-between p-4 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">📖</span>
+                    <div>
+                      <p className="font-medium text-gray-900">Diário: {recentEntry.title}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(recentEntry.createdAt).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </main>
     </div>
