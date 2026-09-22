@@ -2,7 +2,7 @@
 // 🔐 Context Provider para autenticação global
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, authApi } from '../lib/api';
-import { authHelpers } from '../lib/auth';
+import { authHelpers, userStorage } from '../lib/auth';
 
 interface AuthContextType {
   user: User | null;
@@ -29,18 +29,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // 🔄 Carrega usuário na inicialização
   useEffect(() => {
     const initAuth = async () => {
+      const savedUser = authHelpers.getCurrentUser();
+
+      if (!savedUser || !authHelpers.isAuthenticated()) {
+        setIsLoading(false);
+        return;
+      }
+
+      // 🟢 Usa o cache local otimisticamente enquanto valida com o backend,
+      // para não mostrar a tela como deslogada durante o refresh.
+      setUser(savedUser);
+
       try {
-        const savedUser = authHelpers.getCurrentUser();
-        
-        if (savedUser && authHelpers.isAuthenticated()) {
-          // 🔄 Valida o token fazendo refresh do perfil
-          const freshUser = await authApi.getProfile();
-          setUser(freshUser);
-          authHelpers.saveAuthData(authHelpers.tokenStorage.get()!, freshUser);
-        }
-      } catch (error) {
+        // 🔄 Valida a sessão buscando o perfil atual
+        const freshUser = await authApi.getProfile();
+        setUser(freshUser);
+        userStorage.set(freshUser); // token não muda aqui — só o usuário em cache
+      } catch (error: any) {
         console.error('❌ Erro ao carregar usuário:', error);
-        authHelpers.logout();
+        // 🔒 Só encerra a sessão em falha de autenticação real (401). Uma
+        // falha de rede/5xx temporária não deve deslogar o usuário.
+        if (error?.response?.status === 401) {
+          authHelpers.logout();
+          setUser(null);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -114,14 +126,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // 🔄 Refresh do perfil do usuário
   const refreshUser = async () => {
     if (!authHelpers.isAuthenticated()) return;
-    
+
     try {
       const freshUser = await authApi.getProfile();
       setUser(freshUser);
-      authHelpers.saveAuthData(authHelpers.tokenStorage.get()!, freshUser);
-    } catch (error) {
+      userStorage.set(freshUser); // token não muda aqui — só o usuário em cache
+    } catch (error: any) {
       console.error('❌ Erro ao atualizar usuário:', error);
-      logout();
+      // 🔒 Só encerra a sessão em falha de autenticação real (401).
+      if (error?.response?.status === 401) {
+        logout();
+      }
     }
   };
 
