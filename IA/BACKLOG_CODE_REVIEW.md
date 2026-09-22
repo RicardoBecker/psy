@@ -164,7 +164,8 @@ Garantir que role e status atuais do banco sejam usados pelo backend e que desat
 
 ### CR-02.1 — Bloquear login de usuário inativo
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `AuthService.validateUser` agora retorna `null` (→ 401 genérico via `LocalStrategy`) tanto para senha errada/conta inexistente quanto para conta com `isActive: false`, mesmo com senha correta — as três respostas externas são indistinguíveis, sem mensagem diferenciada. Testes novos: `auth.service.spec.ts` (4 casos unitários: ativo+senha certa retorna usuário sem `passwordHash`, inativo+senha certa retorna `null`, senha errada retorna `null`, conta inexistente retorna `null`) e `login.controller.spec.ts` (4 casos E2E via `POST /auth/login` real com Passport/LocalStrategy: ativo loga e recebe token, inativo recebe 401 sem token, senha errada recebe 401 no mesmo formato, conta inexistente idem). 26/26 testes verdes na suíte completa.
 - **Prioridade:** P1 — bloqueador de release
 - **Origem:** `validateUser` verifica senha, mas não `isActive`.
 - **User story:** Como administrador, quero que um usuário desativado não consiga criar uma nova sessão.
