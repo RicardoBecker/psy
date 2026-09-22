@@ -293,7 +293,9 @@ Restaurar build, type-check, lint e comportamento correto da autenticação no n
 
 ### CR-04.2 — Corrigir restauração e atualização da sessão
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `AuthProvider` acessava `authHelpers.tokenStorage.get()!` — `tokenStorage` nunca foi propriedade de `authHelpers`, é um export separado de `lib/auth.ts`; todo reload com sessão salva lançava exceção e o `catch` fazia logout incondicional. Corrigido: `initAuth` agora usa o usuário em cache (`authHelpers.getCurrentUser()`) de forma otimista enquanto valida com `authApi.getProfile()`, e `refreshUser`/`initAuth` só chamam `authHelpers.logout()`/limpam a sessão quando o erro é `401` de verdade (`error.response?.status === 401`) — uma falha de rede/5xx temporária mantém a sessão em cache em vez de deslogar o usuário. Nenhum dos dois caminhos regrava o token (que não muda nesse fluxo); só o usuário em cache é atualizado via `userStorage.set`.
+  Como não havia nenhum framework de teste no frontend, configurado Jest + React Testing Library (`jest.config.js` via `next/jest`, `jest.setup.ts`, script `npm test`) — infraestrutura mínima reaproveitável por `CR-06.3`. Novo `providers/auth-provider.test.tsx` (4 casos): sem sessão salva → não autenticado, API nunca chamada; sessão salva + perfil carregado com sucesso → autenticado com dados atualizados, cache reescrito; sessão salva + `401` → sessão encerrada de verdade (token e usuário removidos do `localStorage`); sessão salva + falha de rede (erro sem `.response`) → sessão mantida em cache, usuário continua autenticado. 4/4 testes verdes. `npx tsc --noEmit` limpo. `npm run build` volta a compilar até o fim — só falha no lint de `checkins/page.tsx`, explicitamente `CR-04.3` (P2, fora do escopo dos 8 bloqueadores P1).
 - **Prioridade:** P1 — bloqueador de release
 - **Origem:** `AuthProvider` acessa `authHelpers.tokenStorage`, propriedade inexistente.
 - **User story:** Como usuário autenticado, quero recarregar a página sem ser desconectado por erro interno.
