@@ -569,14 +569,14 @@ Uma história só pode ser marcada `DONE` quando:
 
 ## Checklist de encerramento do backlog
 
-- [ ] Todas as histórias P1 estão `DONE`.
-- [ ] Backend build e testes passam.
-- [ ] Frontend type-check, lint, testes e build passam.
-- [ ] Migration foi testada com banco PostgreSQL populado.
-- [ ] Nenhum login social simulado permanece público.
-- [ ] Usuário inativo e role revogada perdem acesso imediatamente.
-- [ ] Cadastro público não controla role.
-- [ ] Psicólogo não controla `verified`.
+- [x] Todas as histórias P1 estão `DONE`. (CR-01.1 a CR-04.2 concluídas em 2026-09-22)
+- [x] Backend build e testes passam. (`npm run build` e `npx jest --runInBand` — 36/36 verdes)
+- [ ] Frontend type-check, lint, testes e build passam. (type-check e testes ok; lint/build ainda falham em `checkins/page.tsx`, aguardando `CR-04.3`, P2)
+- [x] Migration foi testada com banco PostgreSQL populado. (`CR-03.1`, rehearsal contra Postgres 16 real)
+- [x] Nenhum login social simulado permanece público. (`CR-01.1`)
+- [x] Usuário inativo e role revogada perdem acesso imediatamente. (`CR-02.1` + `CR-02.2`)
+- [x] Cadastro público não controla role. (`CR-01.2`)
+- [x] Psicólogo não controla `verified`. (`CR-01.3`)
 - [ ] Audit não possui critical/high sem exceção formal.
 - [ ] CORS está restrito em produção.
 - [ ] Token não está disponível em localStorage ou cookie legível por JavaScript.
