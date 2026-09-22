@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsArray } from 'class-validator';
 
 export class CreatePsychologistProfileDto {
   @IsOptional()
@@ -15,6 +15,9 @@ export class CreatePsychologistProfileDto {
   registrationNumber?: string;
 }
 
+// 🔒 Self-service: o próprio psicólogo edita bio/especialidades/registro.
+// `verified` propositalmente não existe aqui — só é concedido pelo
+// endpoint administrativo (PsychologistService.verifyPsychologist).
 export class UpdatePsychologistProfileDto {
   @IsOptional()
   @IsString()
@@ -28,8 +31,4 @@ export class UpdatePsychologistProfileDto {
   @IsOptional()
   @IsString()
   registrationNumber?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  verified?: boolean;
 }

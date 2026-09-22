@@ -70,6 +70,8 @@ export class PsychologistService {
     return profile;
   }
 
+  // 🔒 Self-service: nunca escreve `verified` aqui, mesmo que algo escape
+  // da validação — esse campo é exclusivo de verifyPsychologist (admin).
   async updateProfile(userId: string, updateDto: UpdatePsychologistProfileDto) {
     const profile = await this.getProfile(userId);
 
@@ -79,7 +81,6 @@ export class PsychologistService {
         bio: updateDto.bio,
         specialties: updateDto.specialties,
         registrationNumber: updateDto.registrationNumber,
-        verified: updateDto.verified,
       },
       include: {
         user: {
