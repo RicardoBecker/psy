@@ -195,10 +195,32 @@ async getStats(userId: string) {}
 - DTOs aceitos
 - Exemplos de uso
 
-## 🧪 TESTES (Para Implementar)
-1. **Unit Tests:** Jest para services
-2. **Integration Tests:** Endpoints da API
+## 🧪 TESTES
+1. **Unit Tests:** Jest para services (backend) e componentes (frontend, via React Testing Library)
+2. **Integration/E2E Tests:** Endpoints da API via supertest; migrations via PostgreSQL descartável
 3. **E2E Tests:** Fluxos completos no frontend
+
+### 📊 Meta de cobertura: 90% no código novo/alterado (não no projeto inteiro)
+
+O projeto **não** exige 90% de cobertura em todo o código já existente de uma vez —
+hoje isso quebraria tudo sem dar tempo de evoluir gradualmente. A meta vale sobre o
+**diff**: toda linha cobrível que um PR adiciona ou altera precisa estar coberta por
+teste em pelo menos 90% dos casos.
+
+Antes de abrir um PR, rode dentro do app alterado:
+
+```bash
+npm run test:diff-cov
+```
+
+Isso roda a suíte com cobertura e compara com `origin/main` via
+`scripts/check-diff-coverage.js`, reportando exatamente quais linhas alteradas
+ficaram sem teste. Falha (exit 1) se o percentual do diff ficar abaixo de 90%.
+Um PR que não toca nenhuma linha cobrível (só docs, config, migrations etc.)
+passa trivialmente.
+
+Ainda não está plugado em CI — é responsabilidade de `CR-06.4` em
+`IA/BACKLOG_CODE_REVIEW.md`. Até lá, é um passo manual antes de cada PR.
 
 ## 🚀 DEPLOYMENT PATTERNS
 1. **Environment Variables:** Sempre usar .env

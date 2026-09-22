@@ -519,7 +519,10 @@ Transformar os invariantes do review em proteção contínua contra regressões.
   - testes frontend;
   - build frontend sem dependência externa de fonte;
   - teste de migrations com PostgreSQL 16;
-  - audit de produção com política para critical/high.
+  - audit de produção com política para critical/high;
+  - gate de cobertura do diff (`npm run test:diff-cov` em cada app,
+    `scripts/check-diff-coverage.js`, meta 90% — ver `IA/03-PADROES-DESENVOLVIMENTO.md`),
+    calculado contra a base do PR.
 - **Critérios de aceite:**
   - pipeline roda em pull requests e branch principal;
   - qualquer comando obrigatório com falha bloqueia merge;
