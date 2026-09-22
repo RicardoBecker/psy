@@ -5,6 +5,7 @@ import {
   Body,
   Patch,
   Param,
+  Query,
   UseGuards,
   Request,
   ValidationPipe,
@@ -13,6 +14,7 @@ import {
 import { PsychologistService } from './psychologist.service';
 import { CreatePsychologistProfileDto, UpdatePsychologistProfileDto } from './dto/psychologist-profile.dto';
 import { CreatePatientLinkDto } from './dto/create-patient-link.dto';
+import { SearchPatientsQueryDto } from './dto/search-patients-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -47,6 +49,15 @@ export class PsychologistController {
     return this.psychologistService.updateProfile(req.user.id, updateDto);
   }
 
+  @Get('patients/search')
+  @Roles(Role.PSYCHOLOGIST)
+  searchPatients(
+    @Request() req,
+    @Query(ValidationPipe) query: SearchPatientsQueryDto,
+  ) {
+    return this.psychologistService.searchPatients(req.user.id, query.email);
+  }
+
   @Post('patient-links')
   @Roles(Role.PSYCHOLOGIST)
   createPatientLink(
@@ -74,12 +85,26 @@ export class PsychologistController {
     return this.psychologistService.getMyPsychologists(req.user.id);
   }
 
+  @Get('my-pending-links')
+  @Roles(Role.PATIENT)
+  getMyPendingLinks(@Request() req) {
+    return this.psychologistService.getMyPendingLinks(req.user.id);
+  }
+
   @Patch('links/:id/approve')
   approvePatientLink(
     @Param('id', ParseUUIDPipe) linkId: string,
     @Request() req,
   ) {
     return this.psychologistService.approvePatientLink(linkId, req.user.id);
+  }
+
+  @Patch('links/:id/reject')
+  rejectPatientLink(
+    @Param('id', ParseUUIDPipe) linkId: string,
+    @Request() req,
+  ) {
+    return this.psychologistService.rejectPatientLink(linkId, req.user.id);
   }
 
   // Endpoints administrativos

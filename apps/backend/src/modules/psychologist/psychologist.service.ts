@@ -94,6 +94,34 @@ export class PsychologistService {
     });
   }
 
+  async searchPatients(psychologistId: string, email: string) {
+    const patients = await this.prisma.user.findMany({
+      where: {
+        role: Role.PATIENT,
+        isActive: true,
+        email: { contains: email, mode: 'insensitive' },
+      },
+      select: { id: true, name: true, email: true },
+      take: 10,
+      orderBy: { name: 'asc' },
+    });
+
+    const existingLinks = await this.prisma.patientPsychologistLink.findMany({
+      where: {
+        psychologistId,
+        patientId: { in: patients.map((p) => p.id) },
+      },
+      select: { patientId: true, consentStatus: true },
+    });
+
+    const linkByPatientId = new Map(existingLinks.map((link) => [link.patientId, link.consentStatus]));
+
+    return patients.map((patient) => ({
+      ...patient,
+      linkStatus: linkByPatientId.get(patient.id) ?? null,
+    }));
+  }
+
   async createPatientLink(psychologistId: string, createDto: CreatePatientLinkDto) {
     // Verificar se o psicólogo existe e tem role/perfill correto
     const psychologist = await this.prisma.user.findUnique({
@@ -200,6 +228,25 @@ export class PsychologistService {
     });
   }
 
+  async getMyPendingLinks(patientId: string) {
+    return this.prisma.patientPsychologistLink.findMany({
+      where: {
+        patientId,
+        consentStatus: ConsentStatus.PENDING,
+      },
+      include: {
+        psychologist: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async getPendingLinks(psychologistId: string) {
     return this.prisma.patientPsychologistLink.findMany({
       where: { 
@@ -251,6 +298,52 @@ export class PsychologistService {
     return this.prisma.patientPsychologistLink.update({
       where: { id: linkId },
       data: { consentStatus: ConsentStatus.APPROVED },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            ageGroup: true,
+          },
+        },
+        psychologist: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  async rejectPatientLink(linkId: string, userId: string) {
+    const link = await this.prisma.patientPsychologistLink.findUnique({
+      where: { id: linkId },
+    });
+
+    if (!link) {
+      throw new NotFoundException('Vínculo não encontrado');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    const canReject = (
+      userId === link.patientId ||
+      user?.role === Role.ADMIN
+    );
+
+    if (!canReject) {
+      throw new ForbiddenException('Sem permissão para rejeitar este vínculo');
+    }
+
+    return this.prisma.patientPsychologistLink.update({
+      where: { id: linkId },
+      data: { consentStatus: ConsentStatus.REJECTED },
       include: {
         patient: {
           select: {
