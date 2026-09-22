@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../providers/auth-provider';
 import { Button, Alert } from '../../../components/ui';
+import { checkinsApi } from '../../../lib/checkins-api';
 
 interface CheckinFormData {
   moodScore: number;
@@ -78,40 +79,23 @@ export default function CheckinPage() {
     setAlert(null);
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Token de autenticação não encontrado');
-      }
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/emotional-checkins`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erro ao salvar check-in');
-      }
+      await checkinsApi.create(formData);
 
       setAlert({
         type: 'success',
         message: 'Check-in salvo com sucesso! 🎉'
       });
 
-      // Redirecionar para dashboard após 2 segundos
+      // Redirecionar para o histórico após 2 segundos
       setTimeout(() => {
-        router.push('/dashboard');
+        router.push('/dashboard/checkins');
       }, 2000);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar check-in:', error);
       setAlert({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Erro desconhecido ao salvar check-in'
+        message: error.response?.data?.message || 'Erro ao salvar check-in'
       });
     } finally {
       setIsSubmitting(false);

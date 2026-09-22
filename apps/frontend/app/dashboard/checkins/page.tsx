@@ -4,23 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../providers/auth-provider';
 import { Button, Alert } from '../../../components/ui';
-
-interface EmotionalCheckin {
-  id: string;
-  moodScore: number;
-  energyLevel: number;
-  anxietyLevel: number;
-  notes?: string;
-  createdAt: string;
-}
-
-interface Stats {
-  averageMoodScore: number;
-  averageEnergyLevel: number;
-  averageAnxietyLevel: number;
-  totalCheckins: number;
-  lastCheckin: EmotionalCheckin | null;
-}
+import { checkinsApi, EmotionalCheckin, CheckinStats as Stats } from '../../../lib/checkins-api';
+import { CheckinsTrendChart } from '../../../components/CheckinsTrendChart';
 
 export default function CheckinsHistoryPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -45,21 +30,7 @@ export default function CheckinsHistoryPage() {
 
   const fetchCheckins = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('Token não encontrado');
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/emotional-checkins`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao carregar histórico');
-      }
-
-      const data = await response.json();
+      const data = await checkinsApi.list();
       setCheckins(data);
     } catch (error) {
       console.error('Erro ao carregar check-ins:', error);
@@ -72,21 +43,7 @@ export default function CheckinsHistoryPage() {
 
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('Token não encontrado');
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/emotional-checkins/stats`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao carregar estatísticas');
-      }
-
-      const data = await response.json();
+      const data = await checkinsApi.getStats();
       setStats(data);
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);
@@ -261,6 +218,13 @@ export default function CheckinsHistoryPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Gráfico de Tendência */}
+        {checkins.length > 0 && (
+          <div className="mb-8">
+            <CheckinsTrendChart data={checkins} />
           </div>
         )}
 
