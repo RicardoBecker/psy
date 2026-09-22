@@ -106,3 +106,6 @@ Thumbs.db
 # Kodai tooling artifacts
 .kodai/
 .kodai-nexus/
+
+# Codex tooling artifacts
+.codex/
