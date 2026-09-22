@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '@/providers/auth-provider';
-import { adminApi, GetUsersQuery, type UserWithDetails } from '@/lib/admin-api';
+import { adminApi, GetUsersQuery, type AdminUser, type UserStats } from '@/lib/admin-api';
 import { UsersStats } from '@/components/admin/UsersStats';
 import { UsersFilters } from '@/components/admin/UsersFilters';
 import { UsersTable } from '@/components/admin/UsersTable';
@@ -17,8 +17,8 @@ export default function UsersAdminPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   
   // Estados para dados
-  const [users, setUsers] = useState<UserWithDetails[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [stats, setStats] = useState<UserStats | null>(null);
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -131,31 +131,24 @@ export default function UsersAdminPage() {
     await Promise.all([loadUsers(), loadUserStats()]);
   };
 
-  const handleViewUser = (userId: string) => {
-    toast.success(`Redirecionar para detalhes do usuário ${userId}`);
-    // TODO: Implementar navegação para página de detalhes
+  const handleViewUser = (user: AdminUser) => {
+    router.push(`/dashboard/admin/users/${user.id}`);
   };
 
-  const handleEditUser = (userId: string) => {
-    toast.success(`Abrir modal de edição do usuário ${userId}`);
+  const handleEditUser = (user: AdminUser) => {
+    toast.success(`Abrir modal de edição do usuário ${user.name}`);
     // TODO: Implementar modal de edição de usuário
   };
 
-  const handleChangeRole = async (userId: string, newRole: string) => {
-    try {
-      await adminApi.updateUserRole(userId, { role: newRole as any });
-      toast.success('Role do usuário atualizada com sucesso');
-      await Promise.all([loadUsers(), loadUserStats()]);
-    } catch (error) {
-      console.error('Erro ao alterar role:', error);
-      toast.error('Erro ao alterar role do usuário');
-    }
+  // Alterar role tem controle dedicado na página de detalhe do usuário
+  const handleChangeRole = (user: AdminUser) => {
+    router.push(`/dashboard/admin/users/${user.id}`);
   };
 
-  const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
+  const handleToggleStatus = async (user: AdminUser) => {
     try {
-      await adminApi.updateUserStatus(userId, { isActive: !currentStatus });
-      toast.success(`Usuário ${!currentStatus ? 'ativado' : 'desativado'} com sucesso`);
+      await adminApi.updateUserStatus(user.id, { isActive: !user.isActive });
+      toast.success(`Usuário ${!user.isActive ? 'ativado' : 'desativado'} com sucesso`);
       await Promise.all([loadUsers(), loadUserStats()]);
     } catch (error) {
       console.error('Erro ao alterar status:', error);
@@ -180,7 +173,10 @@ export default function UsersAdminPage() {
           </div>
 
           {/* Stats skeleton */}
-          <UsersStats stats={{} as any} isLoading={true} />
+          <UsersStats
+            stats={{ total: 0, active: 0, inactive: 0, byRole: {}, byAgeGroup: {} }}
+            isLoading={true}
+          />
 
           {/* Content skeleton */}
           <div className="bg-white rounded-xl shadow-sm p-6 animate-pulse">
@@ -226,9 +222,9 @@ export default function UsersAdminPage() {
         </div>
 
         {/* Estatísticas */}
-        <UsersStats 
-          stats={stats} 
-          isLoading={isLoadingStats} 
+        <UsersStats
+          stats={stats ?? { total: 0, active: 0, inactive: 0, byRole: {}, byAgeGroup: {} }}
+          isLoading={isLoadingStats}
         />
 
         {/* Filtros */}

@@ -5,9 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '@/providers/auth-provider';
-import { adminApi, type UserWithDetails } from '@/lib/admin-api';
-import { RoleBadge } from '@/components/ui/RoleBadge';
-import { AgeGroupBadge } from '@/components/ui/AgeGroupBadge';
+import { adminApi, type AdminUser } from '@/lib/admin-api';
+import { RoleBadge, AgeGroupBadge } from '@/components/ui';
 
 // 👤 Página de detalhes de um usuário específico
 export default function UserDetailsPage() {
@@ -16,7 +15,7 @@ export default function UserDetailsPage() {
   const { user: currentUser, isAuthenticated, isLoading: authLoading } = useAuth();
   const userId = params.id as string;
 
-  const [user, setUser] = useState<UserWithDetails | null>(null);
+  const [user, setUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -79,7 +78,7 @@ export default function UserDetailsPage() {
 
     try {
       setIsUpdating(true);
-      await adminApi.updateUserRole(user.id, { role: newRole as any });
+      await adminApi.updateUserRole(user.id, { role: newRole });
       toast.success('Role atualizada com sucesso');
       await loadUserDetails();
     } catch (error) {
@@ -256,16 +255,17 @@ export default function UserDetailsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Data de Nascimento</label>
                     <p className="text-gray-900">
-                      {new Date(user.birthDate).toLocaleDateString('pt-BR')}
-                      <span className="text-sm text-gray-500 ml-2">
-                        ({calculateAge(user.birthDate)} anos)
-                      </span>
+                      {user.birthDate ? (
+                        <>
+                          {new Date(user.birthDate).toLocaleDateString('pt-BR')}
+                          <span className="text-sm text-gray-500 ml-2">
+                            ({calculateAge(user.birthDate)} anos)
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-gray-500">Não informado</span>
+                      )}
                     </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Gênero</label>
-                    <p className="text-gray-900 capitalize">{user.gender}</p>
                   </div>
                 </div>
               </div>

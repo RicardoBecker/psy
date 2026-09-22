@@ -1,22 +1,10 @@
 // 📊 Componente de estatísticas dos usuários para o dashboard admin
 import React from 'react';
+import type { UserStats } from '@/lib/admin-api';
 
-interface UserStats {
-  total: number;
-  active: number;
-  inactive: number;
-  byRole: {
-    ADMIN: number;
-    PSYCHOLOGIST: number;
-    PATIENT: number;
-    GUARDIAN: number;
-  };
-  byAgeGroup: {
-    ADULT: number;
-    ADOLESCENT: number;
-    CHILD: number;
-  };
-}
+// 🔒 byRole/byAgeGroup vêm de um groupBy no backend: uma role/faixa sem
+// nenhum usuário simplesmente não aparece no objeto. Todo acesso abaixo usa
+// `?? 0` para não virar NaN quando isso acontecer.
 
 interface UsersStatsProps {
   stats: UserStats;
@@ -58,17 +46,17 @@ export const UsersStats: React.FC<UsersStatsProps> = ({ stats, isLoading = false
     },
     {
       title: 'Psicólogos',
-      value: stats.byRole.PSYCHOLOGIST,
+      value: stats.byRole.PSYCHOLOGIST ?? 0,
       icon: '👨‍⚕️',
       color: 'purple',
-      description: `${stats.byRole.ADMIN} admins também`
+      description: `${stats.byRole.ADMIN ?? 0} admins também`
     },
     {
       title: 'Pacientes',
-      value: stats.byRole.PATIENT + stats.byRole.GUARDIAN,
+      value: (stats.byRole.PATIENT ?? 0) + (stats.byRole.GUARDIAN ?? 0),
       icon: '👤',
       color: 'orange',
-      description: `${stats.byRole.PATIENT} pacientes, ${stats.byRole.GUARDIAN} responsáveis`
+      description: `${stats.byRole.PATIENT ?? 0} pacientes, ${stats.byRole.GUARDIAN ?? 0} responsáveis`
     }
   ];
 
@@ -107,19 +95,19 @@ export const UsersStats: React.FC<UsersStatsProps> = ({ stats, isLoading = false
         
         <div className="grid md:grid-cols-3 gap-6">
           <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{stats.byAgeGroup.ADULT}</div>
+            <div className="text-2xl font-bold text-gray-900">{stats.byAgeGroup.ADULT ?? 0}</div>
             <div className="text-sm text-gray-600 font-medium">Adultos</div>
             <div className="text-xs text-gray-400">18+ anos</div>
           </div>
-          
+
           <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{stats.byAgeGroup.ADOLESCENT}</div>
+            <div className="text-2xl font-bold text-gray-900">{stats.byAgeGroup.ADOLESCENT ?? 0}</div>
             <div className="text-sm text-gray-600 font-medium">Adolescentes</div>
             <div className="text-xs text-gray-400">13-17 anos</div>
           </div>
-          
+
           <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{stats.byAgeGroup.CHILD}</div>
+            <div className="text-2xl font-bold text-gray-900">{stats.byAgeGroup.CHILD ?? 0}</div>
             <div className="text-sm text-gray-600 font-medium">Crianças</div>
             <div className="text-xs text-gray-400">0-12 anos</div>
           </div>
@@ -128,22 +116,22 @@ export const UsersStats: React.FC<UsersStatsProps> = ({ stats, isLoading = false
         {/* Barra de progresso visual */}
         <div className="mt-4">
           <div className="flex h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div 
-              className="bg-blue-500" 
-              style={{ 
-                width: `${stats.total > 0 ? (stats.byAgeGroup.ADULT / stats.total) * 100 : 0}%` 
+            <div
+              className="bg-blue-500"
+              style={{
+                width: `${stats.total > 0 ? ((stats.byAgeGroup.ADULT ?? 0) / stats.total) * 100 : 0}%`
               }}
             ></div>
-            <div 
-              className="bg-green-500" 
-              style={{ 
-                width: `${stats.total > 0 ? (stats.byAgeGroup.ADOLESCENT / stats.total) * 100 : 0}%` 
+            <div
+              className="bg-green-500"
+              style={{
+                width: `${stats.total > 0 ? ((stats.byAgeGroup.ADOLESCENT ?? 0) / stats.total) * 100 : 0}%`
               }}
             ></div>
-            <div 
-              className="bg-orange-500" 
-              style={{ 
-                width: `${stats.total > 0 ? (stats.byAgeGroup.CHILD / stats.total) * 100 : 0}%` 
+            <div
+              className="bg-orange-500"
+              style={{
+                width: `${stats.total > 0 ? ((stats.byAgeGroup.CHILD ?? 0) / stats.total) * 100 : 0}%`
               }}
             ></div>
           </div>
