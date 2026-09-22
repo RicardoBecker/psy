@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "jest"
+    "test": "jest",
+    "test:cov": "jest --coverage",
+    "test:diff-cov": "jest --coverage --coverageReporters=json --silent && node ../../scripts/check-diff-coverage.js apps/frontend"
   },
   "dependencies": {
     "autoprefixer": "^10.4.16",
