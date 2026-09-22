@@ -5,17 +5,54 @@ import type { NextRequest } from 'next/server';
 // 🔒 Rotas que precisam de autenticação
 const protectedRoutes = ['/dashboard'];
 
+// 👑 Rotas administrativas (requerem role ADMIN)
+const adminRoutes = ['/dashboard/admin'];
+
 // 🌐 Rotas públicas que usuários autenticados devem ser redirecionados
 const authRoutes = ['/login', '/register'];
 
+// 🔓 Decodificar payload do JWT (só payload, sem verificação de assinatura)
+function decodeJWTPayload(token: string) {
+  try {
+    const [, payload] = token.split('.');
+    const decodedPayload = Buffer.from(payload, 'base64url').toString();
+    return JSON.parse(decodedPayload);
+  } catch {
+    return null;
+  }
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
+
   // 🔑 Verificar se existe token
   const token = request.cookies.get('emotional_app_token')?.value;
   const isAuthenticated = !!token;
 
-  // 🛡️ Proteger rotas autenticadas
+  // 🔓 Decodificar token para verificar role (sem validação de assinatura)
+  let userRole = null;
+  if (token) {
+    const payload = decodeJWTPayload(token);
+    userRole = payload?.role;
+  }
+
+  // 👑 Proteger rotas administrativas (verificar role ADMIN)
+  if (adminRoutes.some(route => pathname.startsWith(route))) {
+    if (!isAuthenticated) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    
+    if (userRole !== 'ADMIN') {
+      // Redirecionar para dashboard com mensagem de erro
+      const dashboardUrl = new URL('/dashboard', request.url);
+      dashboardUrl.searchParams.set('error', 'access_denied');
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // 🛡️ Proteger rotas autenticadas gerais
   if (protectedRoutes.some(route => pathname.startsWith(route))) {
     if (!isAuthenticated) {
       const loginUrl = new URL('/login', request.url);
