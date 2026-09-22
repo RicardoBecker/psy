@@ -32,13 +32,19 @@ export class AuthService {
     };
   }
 
+  // 🔒 Retorna null (→ 401 genérico no LocalStrategy) para senha errada,
+  // conta inexistente OU conta desativada — as três respostas externas são
+  // indistinguíveis de propósito, para não facilitar enumeração de contas.
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
-    if (user && (await bcrypt.compare(password, user.passwordHash))) {
-      const { passwordHash, ...result } = user;
-      return result;
+    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+      return null;
     }
-    return null;
+    if (!user.isActive) {
+      return null;
+    }
+    const { passwordHash, ...result } = user;
+    return result;
   }
 
   async login(user: any) {
