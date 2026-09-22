@@ -51,7 +51,9 @@ function resolveBase(repoRoot, base) {
 // números de linha ADICIONADOS/ALTERADOS no lado novo (HEAD).
 function getAddedLinesByFile(repoRoot, base, appDir) {
   const mergeBase = git(['merge-base', base, 'HEAD'], repoRoot).trim();
-  const diff = git(['diff', '--unified=0', '--no-color', mergeBase, 'HEAD', '--', appDir], repoRoot);
+  // Compara a base contra o working tree (inclui mudanças staged/unstaged,
+  // não só o que já foi commitado) — é o que se quer checar antes de abrir PR.
+  const diff = git(['diff', '--unified=0', '--no-color', mergeBase, '--', appDir], repoRoot);
 
   const addedByFile = new Map();
   let currentFile = null;
