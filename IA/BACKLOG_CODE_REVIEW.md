@@ -116,7 +116,8 @@ Eliminar emissão de tokens para identidades não verificadas e impedir que usu�
 
 ### CR-01.3 — Separar perfil profissional de verificação administrativa
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `verified` removido de `UpdatePsychologistProfileDto`; `PsychologistService.updateProfile` não escreve mais `verified` no `data` do Prisma (removido da chamada, não só do valor). `ValidationPipe` global rejeita com 400 qualquer `verified` enviado no PATCH de perfil. Endpoint `PATCH /psychologist/verify/:id` (admin-only, `@Roles(Role.ADMIN)`) não foi alterado. Novo `psychologist.controller.spec.ts` (5 casos): PATCH de perfil com `verified` → 400 e service nunca chamado; PATCH de perfil sem `verified` → 200 e service chamado sem o campo; ADMIN verifica perfil com sucesso; PSYCHOLOGIST e PATIENT recebem 403 no endpoint de verificação. 18/18 testes verdes na suíte completa. Frontend não precisou de alteração: o formulário de perfil já não enviava `verified` no payload.
 - **Prioridade:** P1 — bloqueador de release
 - **Origem:** psicólogo pode enviar `verified` no próprio PATCH.
 - **User story:** Como paciente, quero confiar que o selo de psicólogo verificado só pode ser concedido por um administrador.
