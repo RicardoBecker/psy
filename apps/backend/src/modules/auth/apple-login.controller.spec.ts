@@ -11,14 +11,13 @@ import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthProvider } from '../../common/types/auth.types';
 
-// 🔒 KAN-15: integração ponta a ponta via HTTP (mesmo padrão de
-// login.controller.spec.ts) — do POST /auth/google até os cookies de
+// 🍎 KAN-16: integração ponta a ponta via HTTP (mesmo padrão de
+// google-login.controller.spec.ts) — do POST /auth/apple até os cookies de
 // sessão, passando pelo AuthService/SocialAuthService reais. Só o
-// GoogleAuthProvider é mockado (fronteira de rede com o Google) e o Prisma
-// (fronteira com o banco).
-describe('POST /auth/google — id token verificado vira sessão própria (KAN-15)', () => {
+// AppleAuthProvider é mockado (fronteira de rede com a Apple) e o Prisma.
+describe('POST /auth/apple — id token verificado vira sessão própria (KAN-16)', () => {
   let app: INestApplication;
-  let googleAuthProvider: { verify: jest.Mock };
+  let appleAuthProvider: { verify: jest.Mock };
   let usersService: {
     findById: jest.Mock;
     findByEmail: jest.Mock;
@@ -27,7 +26,7 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
   let prisma: { socialIdentity: { findUnique: jest.Mock; create: jest.Mock } };
 
   beforeAll(async () => {
-    googleAuthProvider = { verify: jest.fn() };
+    appleAuthProvider = { verify: jest.fn() };
     usersService = {
       findById: jest.fn(),
       findByEmail: jest.fn(),
@@ -40,8 +39,8 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
       providers: [
         AuthService,
         SocialAuthService,
-        { provide: GoogleAuthProvider, useValue: googleAuthProvider },
-        { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: AppleAuthProvider, useValue: appleAuthProvider },
         { provide: UsersService, useValue: usersService },
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },
@@ -59,25 +58,24 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
   });
 
   it('new user: valid token creates the account and sets the session as an HttpOnly cookie, never in the body', async () => {
-    googleAuthProvider.verify.mockResolvedValue({
-      provider: AuthProvider.GOOGLE,
-      providerUserId: 'google-sub-1',
-      email: 'nova@example.com',
+    appleAuthProvider.verify.mockResolvedValue({
+      provider: AuthProvider.APPLE,
+      providerUserId: 'apple-sub-1',
+      email: 'nova@privaterelay.appleid.com',
       emailVerified: true,
-      name: 'Nova Pessoa',
     });
     prisma.socialIdentity.findUnique.mockResolvedValue(null);
     usersService.findByEmail.mockResolvedValue(null);
     usersService.createFromSocialProfile.mockResolvedValue({
       id: 'user-novo',
-      email: 'nova@example.com',
+      email: 'nova@privaterelay.appleid.com',
       role: 'PATIENT',
       ageGroup: 'ADULT',
     });
 
     const res = await request(app.getHttpServer())
-      .post('/auth/google')
-      .send({ token: 'id-token-valido-do-google' });
+      .post('/auth/apple')
+      .send({ token: 'id-token-valido-da-apple' });
 
     expect(res.status).toBe(201);
     expect(res.body).not.toHaveProperty('access_token');
@@ -91,9 +89,9 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
   });
 
   it('returning user: existing identity logs in without creating a new account', async () => {
-    googleAuthProvider.verify.mockResolvedValue({
-      provider: AuthProvider.GOOGLE,
-      providerUserId: 'google-sub-2',
+    appleAuthProvider.verify.mockResolvedValue({
+      provider: AuthProvider.APPLE,
+      providerUserId: 'apple-sub-2',
       email: 'existente@example.com',
       emailVerified: true,
     });
@@ -107,19 +105,19 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
     });
 
     const res = await request(app.getHttpServer())
-      .post('/auth/google')
-      .send({ token: 'id-token-valido-do-google' });
+      .post('/auth/apple')
+      .send({ token: 'id-token-valido-da-apple' });
 
     expect(res.status).toBe(201);
     expect(res.body.user.id).toBe('user-existente');
     expect(usersService.createFromSocialProfile).not.toHaveBeenCalled();
   });
 
-  it('rejects an invalid/expired Google token with 401 and issues no session', async () => {
-    googleAuthProvider.verify.mockRejectedValue(new UnauthorizedException('Token do Google inválido ou expirado.'));
+  it('rejects an invalid/expired Apple token with 401 and issues no session', async () => {
+    appleAuthProvider.verify.mockRejectedValue(new UnauthorizedException('Token da Apple inválido ou expirado.'));
 
     const res = await request(app.getHttpServer())
-      .post('/auth/google')
+      .post('/auth/apple')
       .send({ token: 'token-forjado-por-um-atacante' });
 
     expect(res.status).toBe(401);
@@ -128,9 +126,9 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
   });
 
   it('refuses to log the victim in when the token email is unverified and already belongs to someone else', async () => {
-    googleAuthProvider.verify.mockResolvedValue({
-      provider: AuthProvider.GOOGLE,
-      providerUserId: 'google-sub-atacante',
+    appleAuthProvider.verify.mockResolvedValue({
+      provider: AuthProvider.APPLE,
+      providerUserId: 'apple-sub-atacante',
       email: 'vitima@example.com',
       emailVerified: false,
     });
@@ -138,7 +136,7 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
     usersService.findByEmail.mockResolvedValue({ id: 'user-vitima', email: 'vitima@example.com', isActive: true });
 
     const res = await request(app.getHttpServer())
-      .post('/auth/google')
+      .post('/auth/apple')
       .send({ token: 'token-com-email-nao-verificado' });
 
     expect(res.status).toBe(401);

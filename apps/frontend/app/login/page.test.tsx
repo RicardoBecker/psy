@@ -9,10 +9,12 @@ jest.mock('next/navigation', () => ({
 
 const loginMock = jest.fn();
 const googleLoginMock = jest.fn();
+const appleLoginMock = jest.fn();
 jest.mock('../../providers/auth-provider', () => ({
   useAuth: () => ({
     login: loginMock,
     googleLogin: googleLoginMock,
+    appleLogin: appleLoginMock,
     isLoading: false,
   }),
 }));
@@ -20,6 +22,13 @@ jest.mock('../../providers/auth-provider', () => ({
 const promptGoogleSignInMock = jest.fn();
 jest.mock('../../lib/google-identity', () => ({
   promptGoogleSignIn: (...args: unknown[]) => promptGoogleSignInMock(...args),
+}));
+
+const appleSignInMock = jest.fn();
+jest.mock('../../lib/apple-identity', () => ({
+  appleSignIn: (...args: unknown[]) => appleSignInMock(...args),
+  isAppleSignInCancellation: (err: unknown) =>
+    typeof err === 'object' && err !== null && (err as any).error === 'popup_closed_by_user',
 }));
 
 // 🔍 KAN-15/KAN-74: fluxo ponta a ponta do botão "Continuar com Google" na
@@ -87,6 +96,65 @@ describe('LoginPage — Google Sign-In (KAN-15/KAN-74)', () => {
     expect(pushMock).not.toHaveBeenCalled();
     // Alert de erro usa o ícone ❌ (components/ui/index.tsx) — ausência dele
     // confirma que nenhuma mensagem de erro foi exibida pelo cancelamento.
+    expect(screen.queryByText('❌')).not.toBeInTheDocument();
+  });
+});
+
+// 🍎 KAN-16/KAN-76: mesmo tipo de cobertura do Google acima, para o botão
+// "Continuar com Apple" — sucesso, erro do backend, erro ao abrir o popup e
+// cancelamento pelo usuário (fechar o popup não deve navegar nem mostrar erro).
+describe('LoginPage — Apple Sign-In (KAN-16/KAN-76)', () => {
+  beforeEach(() => {
+    pushMock.mockClear();
+    loginMock.mockReset();
+    appleLoginMock.mockReset();
+    appleSignInMock.mockReset();
+  });
+
+  it('successful credential: logs in and navigates to /dashboard', async () => {
+    appleSignInMock.mockResolvedValue('id-token-valido-da-apple');
+    appleLoginMock.mockResolvedValue(undefined);
+
+    render(<LoginPage />);
+    fireEvent.click(screen.getByText('Continuar com Apple'));
+
+    await waitFor(() => expect(appleLoginMock).toHaveBeenCalledWith('id-token-valido-da-apple'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/dashboard'));
+  });
+
+  it('backend rejects the token: shows the error, does not navigate', async () => {
+    appleSignInMock.mockResolvedValue('id-token-invalido');
+    appleLoginMock.mockRejectedValue(new Error('Token da Apple inválido ou expirado.'));
+
+    render(<LoginPage />);
+    fireEvent.click(screen.getByText('Continuar com Apple'));
+
+    expect(await screen.findByText('Token da Apple inválido ou expirado.')).toBeInTheDocument();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it('popup fails to open (e.g. not configured): shows an error, never calls the API', async () => {
+    appleSignInMock.mockRejectedValue(new Error('Login com Apple não está disponível no momento.'));
+
+    render(<LoginPage />);
+    fireEvent.click(screen.getByText('Continuar com Apple'));
+
+    expect(
+      await screen.findByText('Login com Apple não está disponível no momento.'),
+    ).toBeInTheDocument();
+    expect(appleLoginMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it('user closes the Apple popup: no error, no navigation, no API call', async () => {
+    appleSignInMock.mockRejectedValue({ error: 'popup_closed_by_user' });
+
+    render(<LoginPage />);
+    fireEvent.click(screen.getByText('Continuar com Apple'));
+
+    await waitFor(() => expect(appleSignInMock).toHaveBeenCalled());
+    expect(appleLoginMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
     expect(screen.queryByText('❌')).not.toBeInTheDocument();
   });
 });

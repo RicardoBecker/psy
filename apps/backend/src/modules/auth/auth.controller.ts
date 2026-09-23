@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Request, Res, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -67,9 +67,17 @@ export class AuthController {
     return { user, csrfToken };
   }
 
-  // 🍎 Apple Sign In — desabilitado pelo mesmo motivo do Google acima.
+  // 🍎 KAN-16: login com Apple. Mesmo contrato do Google acima — isento de
+  // CSRF (ainda não existe sessão), `token` é o identityToken assinado pela
+  // Apple, verificado em AuthService.loginWithApple antes de confiar nele.
+  @SkipCsrf()
   @Post('apple')
-  async appleLogin() {
-    throw new ServiceUnavailableException('Login com Apple não está disponível no momento.');
+  async appleLogin(
+    @Body() dto: SocialLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { user, access_token } = await this.authService.loginWithApple(dto.token);
+    const csrfToken = setSessionCookies(res, access_token);
+    return { user, csrfToken };
   }
 }

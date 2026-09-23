@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '../../providers/auth-provider';
 import { Button, Input, Alert } from '../../components/ui';
 import { promptGoogleSignIn } from '../../lib/google-identity';
+import { appleSignIn, isAppleSignInCancellation } from '../../lib/apple-identity';
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -14,9 +15,10 @@ export default function LoginPage() {
   });
   const [error, setError] = useState('');
   
-  const { login, googleLogin, isLoading } = useAuth();
+  const { login, googleLogin, appleLogin, isLoading } = useAuth();
   const router = useRouter();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +66,25 @@ export default function LoginPage() {
       setError(err.message || 'Não foi possível iniciar o login com Google.');
     } finally {
       setIsGoogleLoading(false);
+    }
+  };
+
+  // 🍎 KAN-16/KAN-76: abre o popup do Apple. Fechamento pelo usuário chega
+  // como rejeição com `error: 'popup_closed_by_user'` — tratado como
+  // cancelamento silencioso, nunca como erro exibido na tela.
+  const handleAppleLogin = async () => {
+    setError('');
+    setIsAppleLoading(true);
+    try {
+      const idToken = await appleSignIn();
+      await appleLogin(idToken);
+      router.push('/dashboard');
+    } catch (err: any) {
+      if (!isAppleSignInCancellation(err)) {
+        setError(err.message || 'Erro no login com Apple');
+      }
+    } finally {
+      setIsAppleLoading(false);
     }
   };
 
@@ -136,13 +157,11 @@ export default function LoginPage() {
                 </div>
               </Button>
 
-              <Button 
-                variant="social" 
+              <Button
+                variant="social"
                 type="button"
-                onClick={() => {
-                  // TODO: Implementar Apple Sign In
-                  alert('🚧 Apple Login será implementado com as credenciais de desenvolvedor');
-                }}
+                isLoading={isAppleLoading}
+                onClick={handleAppleLogin}
               >
                 <div className="flex items-center justify-center space-x-2">
                   <span>🍎</span>
