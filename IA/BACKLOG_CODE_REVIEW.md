@@ -137,7 +137,9 @@ Eliminar emissão de tokens para identidades não verificadas e impedir que usu�
 
 ### CR-01.4 — Restringir descoberta e convites a psicólogos verificados
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `PsychologistService.requireVerifiedPsychologist` (novo método privado) exige `psychologistProfile.verified === true`; chamado no início de `searchPatients` e `createPatientLink`, antes de qualquer consulta a dados de pacientes. Mensagem de erro idêntica para "sem perfil" e "perfil não verificado" (`ForbiddenException`, 403) — não revela qual dos dois é o caso real. `createPatientLink` passou a checar `patient.isActive`, usando a mesma mensagem `NotFoundException` do caso "paciente não existe" — um paciente inativo não recebe novo convite e não é diferenciável de um paciente inexistente. Busca já filtrava `isActive: true` desde a implementação original do EPIC-05.
+  Novo `psychologist.service.spec.ts` (7 casos): sem perfil → 403, sem chamar `user.findMany`; perfil não verificado → 403; mensagens de "sem perfil" e "não verificado" idênticas (prova de não-enumeração); perfil verificado → busca prossegue normalmente; convite sem perfil verificado → 403, sem chamar `create`; convite para paciente inativo → 404 com a mesma mensagem de "não encontrado"; convite com psicólogo verificado e paciente ativo → cria o vínculo normalmente. 43/43 testes verdes na suíte completa. `npx tsc --noEmit` e `npm run build` limpos. `npm run test:diff-cov`: 100% de cobertura no diff.
 - **Prioridade:** P2
 - **Origem:** qualquer conta com role `PSYCHOLOGIST` pode enumerar pacientes por email e enviar convites.
 - **User story:** Como paciente, quero ser encontrado e convidado somente por profissionais verificados, reduzindo exposição de dados pessoais e abuso.
