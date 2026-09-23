@@ -1,6 +1,6 @@
 'use client';
 // 📊 Dashboard Principal - Área autenticada
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../providers/auth-provider';
@@ -15,10 +15,29 @@ interface DashboardStats {
   wellbeingAverage: number | null;
 }
 
+// 🚨 useSearchParams() precisa estar dentro de um <Suspense> (Next.js 14.2+)
+// para não travar a pré-renderização estática da página — por isso isolado
+// num componente próprio, que não renderiza nada visualmente.
+function AccessDeniedToast() {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error === 'access_denied') {
+      toast.error('❌ Acesso negado! Você não tem permissão para acessar essa área.');
+      // Limpar o parâmetro de erro da URL
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('error');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+  }, [searchParams]);
+
+  return null;
+}
+
 export default function DashboardPage() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [recentCheckin, setRecentCheckin] = useState<EmotionalCheckin | null>(null);
@@ -79,18 +98,6 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, user, loadDashboardData]);
 
-  // 🚨 Verificar se há erro de acesso negado
-  useEffect(() => {
-    const error = searchParams.get('error');
-    if (error === 'access_denied') {
-      toast.error('❌ Acesso negado! Você não tem permissão para acessar essa área.');
-      // Limpar o parâmetro de erro da URL
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('error');
-      window.history.replaceState({}, '', newUrl.toString());
-    }
-  }, [searchParams]);
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -113,6 +120,9 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Suspense fallback={null}>
+        <AccessDeniedToast />
+      </Suspense>
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

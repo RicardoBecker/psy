@@ -367,7 +367,18 @@ Reduzir exposição conhecida da cadeia de dependências e endurecer as fronteir
 
 ### CR-05.1 — Atualizar dependências vulneráveis do frontend
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `next` e `eslint-config-next` atualizados de `14.0.0` para `14.2.35` (último patch da linha 14.x — sem major); `postcss` de `^8.4.31` para `^8.5.23`; `npm audit fix` (sem `--force`) resolveu `postcss-selector-parser`. `axios` já estava em versão não vulnerável (`^1.14.0`, sem achado no audit). `npm audit --omit=dev`: de 9 vulnerabilidades (1 crítica, 5 altas) para 2 (1 crítica, 1 alta) — ambas residuais só corrigíveis com Next 16, ver exceção documentada abaixo.
+  **Regressão encontrada e corrigida durante a atualização:** Next 14.2.x passou a exigir `<Suspense>` ao redor de `useSearchParams()` para permitir pré-renderização estática, quebrando o build de `/dashboard` (`useSearchParams() should be wrapped in a suspense boundary`). Isolado em componente próprio (`AccessDeniedToast`, sem saída visual) envolto em `<Suspense fallback={null}>` — mesmo comportamento, build volta a passar.
+  `npm ci` testado em diretório isolado (`/tmp`): reproduz a instalação a partir do lockfile atualizado sem erro. `npx jest`, `npx tsc --noEmit`, `npm run lint` e `npm run build` (completo, 15/15 páginas) — todos limpos.
+
+  **Exceção formal — vulnerabilidades residuais do Next.js (não corrigíveis dentro da linha 14.x):**
+  - **Vulnerabilidades:** `next` critical (agrega várias advisories, incluindo AVIF Image Optimization RCE, Windows RCE, DoS/SSRF em Server Actions, cache poisoning em Middleware/RSC) e `postcss` high (vendorizado dentro do próprio `next`, não é o `postcss` de topo já atualizado).
+  - **Análise de alcance:** o app não usa `next/image` (sem `remotePatterns`), não usa Server Actions (`'use server'`), não usa i18n de rota nem `rewrites` no `next.config.js` (config vazio) — a maior parte da superfície dessas advisories não é alcançável pelo código atual. O middleware é usado ativamente (proteção de rotas por role), mas já está documentado como camada de UX, não de autorização (`IA/BACKLOG_CODE_REVIEW.md`, achados do review original) — o backend permanece a fronteira de autorização real (confirmado pelas correções de `CR-02.2`).
+  - **Mitigação:** nenhuma ação adicional de código necessária hoje, dado o alcance acima. Autorização real continua exclusivamente no backend.
+  - **Correção completa:** requer upgrade major para Next 15/16 — mudança de React, possíveis breaking changes no App Router, exige sua própria rodada de testes de regressão. Fora do escopo de uma atualização de dependências (regra do backlog: não fazer upgrade major automático sem avaliar compatibilidade).
+  - **Responsável:** Ricardo (dono do projeto).
+  - **Prazo:** antes do primeiro deploy em produção pública, ou em até 90 dias corridos a partir de 2026-09-23 — o que ocorrer primeiro.
 - **Prioridade:** P2
 - **Origem:** audit encontrou vulnerabilidades críticas/altas em Next.js, Axios e cadeia PostCSS.
 - **User story:** Como operador, quero executar o frontend em versões corrigidas e suportadas.
