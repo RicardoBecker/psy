@@ -137,7 +137,9 @@ Eliminar emissão de tokens para identidades não verificadas e impedir que usu�
 
 ### CR-01.4 — Restringir descoberta e convites a psicólogos verificados
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `PsychologistService.requireVerifiedPsychologist` (novo método privado) exige `psychologistProfile.verified === true`; chamado no início de `searchPatients` e `createPatientLink`, antes de qualquer consulta a dados de pacientes. Mensagem de erro idêntica para "sem perfil" e "perfil não verificado" (`ForbiddenException`, 403) — não revela qual dos dois é o caso real. `createPatientLink` passou a checar `patient.isActive`, usando a mesma mensagem `NotFoundException` do caso "paciente não existe" — um paciente inativo não recebe novo convite e não é diferenciável de um paciente inexistente. Busca já filtrava `isActive: true` desde a implementação original do EPIC-05.
+  Novo `psychologist.service.spec.ts` (7 casos): sem perfil → 403, sem chamar `user.findMany`; perfil não verificado → 403; mensagens de "sem perfil" e "não verificado" idênticas (prova de não-enumeração); perfil verificado → busca prossegue normalmente; convite sem perfil verificado → 403, sem chamar `create`; convite para paciente inativo → 404 com a mesma mensagem de "não encontrado"; convite com psicólogo verificado e paciente ativo → cria o vínculo normalmente. 43/43 testes verdes na suíte completa. `npx tsc --noEmit` e `npm run build` limpos. `npm run test:diff-cov`: 100% de cobertura no diff.
 - **Prioridade:** P2
 - **Origem:** qualquer conta com role `PSYCHOLOGIST` pode enumerar pacientes por email e enviar convites.
 - **User story:** Como paciente, quero ser encontrado e convidado somente por profissionais verificados, reduzindo exposição de dados pessoais e abuso.
@@ -244,7 +246,9 @@ Garantir evolução segura do schema sem perda do histórico emocional.
 
 ### CR-03.2 — Criar teste permanente de migrations com banco populado
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** Helpers de banco descartável extraídos para `src/test-utils/disposable-postgres.ts` (reaproveitado por `CR-03.1`). Novo `src/prisma/all-migrations-populated.e2e.spec.ts`: **genérico** — lê `prisma/migrations/` dinamicamente (não fixa nomes de migration), aplica todas menos a mais recente, popula fixture sintética cobrindo usuário, psicólogo com perfil verificado, tutor/menor, check-in, diário, vínculo psicólogo-paciente e registro de consentimento, aplica a migration mais recente por cima, e verifica: contagem de linhas idêntica em todas as 7 tabelas antes/depois; nenhuma tabela ficou vazia; relacionamentos (joins) entre todas as entidades continuam resolvendo; valores de check-in mapeados corretamente; nenhum campo obrigatório ficou nulo. Também roda todas as migrations do zero em banco vazio.
+  Validado que o teste realmente pega regressão: restaurei temporariamente a versão destrutiva original da migration de check-ins (a que motivou `CR-03.1`) e confirmei que o teste falha na hora (`ERROR: column "moodScore" ... contains null values`); revertido antes do commit final. 46/46 testes verdes na suíte completa (3 novos). `npx tsc --noEmit` e `npm run build` limpos.
 - **Prioridade:** P2
 - **Origem:** não existe rehearsal automatizado de schema evolution.
 - **User story:** Como equipe, quero validar migrations contra dados representativos para impedir regressões destrutivas.
@@ -315,7 +319,15 @@ Restaurar build, type-check, lint e comportamento correto da autenticação no n
 
 ### CR-04.3 — Corrigir ordem dos hooks no histórico de check-ins
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** o `return null` condicional em `checkins/page.tsx` acontecia antes da declaração do `useEffect` de busca de dados — usuário anônimo executava menos hooks que usuário autenticado, violando `rules-of-hooks`. O redirect foi movido para dentro de um `useEffect` (mesmo padrão já usado nas demais páginas do app), declarado antes de qualquer `return`; os `return` condicionais (loading de auth → `null` se anônimo → loading de dados → conteúdo) agora só acontecem depois de todos os hooks declarados.
+  Novo `checkins/page.test.tsx` (2 casos, usando `rerender` do Testing Library para simular a transição real): loading→autenticado não lança erro e carrega os check-ins; loading→anônimo não lança erro, redireciona e **não** chama a API de check-ins. Validado que o teste pega o bug de verdade: restaurei temporariamente o código antigo e o teste falhou com o erro exato do React (`Rendered fewer hooks than expected. This may be caused by an accidental early return statement.`); revertido antes do commit final. `npm run lint` limpo (`react-hooks/rules-of-hooks` era o único erro de lint do projeto).
+
+### CR-04.4 — Tornar o build independente do download de fonte
+
+- **Status:** DONE
+- **Evidência:** `app/layout.tsx` usava `next/font/google` (Inter), que baixa o arquivo da fonte de `fonts.googleapis.com` durante o build — falha em ambiente sem rede. Substituído pela stack de fontes do sistema já padrão do Tailwind (`font-sans`: `ui-sans-serif, system-ui, -apple-system, ...`), aplicada via `className="font-sans"` no `<body>`. Nenhum arquivo de fonte foi adicionado ao repositório — sem questão de licença a gerenciar. Visualmente muito próximo de Inter (mesma família de fontes UI modernas).
+  `npm run build` completo passa sem nenhuma referência a `next/font` ou a domínio externo de fonte no código.
 - **Prioridade:** P2
 - **Origem:** retorno condicional ocorre antes de `useEffect`.
 - **User story:** Como usuário não autenticado, quero ser redirecionado sem erro de renderização do React.
@@ -574,7 +586,7 @@ Uma história só pode ser marcada `DONE` quando:
 
 - [x] Todas as histórias P1 estão `DONE`. (CR-01.1 a CR-04.2 concluídas em 2026-09-22)
 - [x] Backend build e testes passam. (`npm run build` e `npx jest --runInBand` — 36/36 verdes)
-- [ ] Frontend type-check, lint, testes e build passam. (type-check e testes ok; lint/build ainda falham em `checkins/page.tsx`, aguardando `CR-04.3`, P2)
+- [x] Frontend type-check, lint, testes e build passam. (`CR-04.3` e `CR-04.4` — `npm run build` completo, do zero, sem rede externa)
 - [x] Migration foi testada com banco PostgreSQL populado. (`CR-03.1`, rehearsal contra Postgres 16 real)
 - [x] Nenhum login social simulado permanece público. (`CR-01.1`)
 - [x] Usuário inativo e role revogada perdem acesso imediatamente. (`CR-02.1` + `CR-02.2`)

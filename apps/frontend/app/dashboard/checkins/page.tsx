@@ -15,11 +15,13 @@ export default function CheckinsHistoryPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Redirect se não estiver autenticado
-  if (!isLoading && !isAuthenticated) {
-    router.push('/login');
-    return null;
-  }
+  // Redirect se não estiver autenticado — dentro de efeito, nunca antes de
+  // declarar todos os hooks (rules-of-hooks).
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -78,7 +80,22 @@ export default function CheckinsHistoryPage() {
     return 'text-green-600 bg-green-50';
   };
 
-  if (isLoading || loadingData) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null; // redirect em andamento via useEffect acima
+  }
+
+  if (loadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
