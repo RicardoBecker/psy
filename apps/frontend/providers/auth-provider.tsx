@@ -12,7 +12,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<void>;
   googleLogin: (token: string) => Promise<void>;
   appleLogin: (token: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -26,32 +26,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🔄 Carrega usuário na inicialização
+  // 🔄 Carrega usuário na inicialização. CR-05.4: não há mais token local
+  // para checar antes — a sessão vive num cookie HttpOnly que o navegador
+  // envia sozinho; a única forma de saber se é válida é perguntar ao
+  // backend.
   useEffect(() => {
     const initAuth = async () => {
       const savedUser = authHelpers.getCurrentUser();
 
-      if (!savedUser || !authHelpers.isAuthenticated()) {
-        setIsLoading(false);
-        return;
-      }
-
       // 🟢 Usa o cache local otimisticamente enquanto valida com o backend,
       // para não mostrar a tela como deslogada durante o refresh.
-      setUser(savedUser);
+      if (savedUser) setUser(savedUser);
 
       try {
-        // 🔄 Valida a sessão buscando o perfil atual
         const freshUser = await authApi.getProfile();
         setUser(freshUser);
-        userStorage.set(freshUser); // token não muda aqui — só o usuário em cache
+        userStorage.set(freshUser);
       } catch (error: any) {
-        console.error('❌ Erro ao carregar usuário:', error);
         // 🔒 Só encerra a sessão em falha de autenticação real (401). Uma
         // falha de rede/5xx temporária não deve deslogar o usuário.
         if (error?.response?.status === 401) {
-          authHelpers.logout();
+          userStorage.remove();
           setUser(null);
+        } else if (savedUser) {
+          console.error('❌ Erro ao validar sessão (mantendo cache local):', error);
         }
       } finally {
         setIsLoading(false);
@@ -66,7 +64,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     try {
       const response = await authApi.login({ email, password });
-      authHelpers.saveAuthData(response.access_token, response.user);
+      userStorage.set(response.user);
       setUser(response.user);
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Erro ao fazer login');
@@ -80,7 +78,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     try {
       const response = await authApi.register({ name, email, password });
-      authHelpers.saveAuthData(response.access_token, response.user);
+      userStorage.set(response.user);
       setUser(response.user);
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Erro ao criar conta');
@@ -94,7 +92,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     try {
       const response = await authApi.googleLogin(token);
-      authHelpers.saveAuthData(response.access_token, response.user);
+      userStorage.set(response.user);
       setUser(response.user);
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Erro no login com Google');
@@ -108,7 +106,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     try {
       const response = await authApi.appleLogin(token);
-      authHelpers.saveAuthData(response.access_token, response.user);
+      userStorage.set(response.user);
       setUser(response.user);
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Erro no login com Apple');
@@ -117,25 +115,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // 🚪 Função de logout
-  const logout = () => {
-    authHelpers.logout();
+  // 🚪 Função de logout — pede ao backend para limpar o cookie HttpOnly
+  // (JavaScript não consegue apagá-lo sozinho).
+  const logout = async () => {
+    await authHelpers.logout();
     setUser(null);
   };
 
   // 🔄 Refresh do perfil do usuário
   const refreshUser = async () => {
-    if (!authHelpers.isAuthenticated()) return;
-
     try {
       const freshUser = await authApi.getProfile();
       setUser(freshUser);
-      userStorage.set(freshUser); // token não muda aqui — só o usuário em cache
+      userStorage.set(freshUser);
     } catch (error: any) {
       console.error('❌ Erro ao atualizar usuário:', error);
       // 🔒 Só encerra a sessão em falha de autenticação real (401).
       if (error?.response?.status === 401) {
-        logout();
+        await logout();
       }
     }
   };

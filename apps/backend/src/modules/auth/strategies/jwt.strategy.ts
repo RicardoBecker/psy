@@ -1,9 +1,18 @@
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Strategy } from 'passport-jwt';
+import { Request } from 'express';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload, AuthenticatedUser } from '../../../common/types/auth.types';
 import { UsersService } from '../../users/users.service';
+import { SESSION_COOKIE_NAME } from '../../../common/session-cookie';
+
+// 🔒 CR-05.4: a sessão vive só no cookie HttpOnly — o token nunca chega ao
+// backend via header Authorization, porque o navegador nunca teve acesso
+// ao valor para colocar lá. Extrai exclusivamente do cookie.
+function extractFromCookie(req: Request): string | null {
+  return req?.cookies?.[SESSION_COOKIE_NAME] ?? null;
+}
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -12,7 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private usersService: UsersService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: extractFromCookie,
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET'),
     });
