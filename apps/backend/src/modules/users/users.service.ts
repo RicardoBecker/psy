@@ -48,6 +48,33 @@ export class UsersService {
     return user;
   }
 
+  // 🔒 KAN-15/KAN-16: conta criada a partir de login social — sempre
+  // PATIENT (mesma regra do cadastro público comum) e sem passwordHash,
+  // já que a identidade é provada pelo provedor, não por senha local.
+  // Quem chama (SocialAuthService) já verificou o token antes de chegar
+  // aqui; `email` e `name` já são confiáveis neste ponto.
+  async createFromSocialProfile(profile: { email: string; name?: string }) {
+    return this.prisma.user.create({
+      data: {
+        name: profile.name?.trim() || profile.email.split('@')[0],
+        email: profile.email,
+        passwordHash: null,
+        role: Role.PATIENT,
+        ageGroup: AgeGroup.ADULT,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        ageGroup: true,
+        birthDate: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+  }
+
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },

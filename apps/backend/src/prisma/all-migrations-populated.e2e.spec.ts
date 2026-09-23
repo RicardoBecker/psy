@@ -91,8 +91,13 @@ describe('Integridade de todas as migrations com banco populado (CR-03.2)', () =
           ('fixture-minor', 'Menor Fixture', 'minor-fixture@example.com', 'x', 'PATIENT', 'CHILD', true)
       `);
 
+      // 🔄 Nomes de coluna pós-rename (CR-03.1/KAN-15: a migration de rename
+      // de check-in emocional deixou de ser "a mais recente" quando esta
+      // suíte ganhou uma migration nova por cima — nesse ponto da sequência
+      // (priorMigrations) ela já rodou, então a fixture usa moodScore/
+      // energyLevel/anxietyLevel, não os nomes antigos.
       await client.query(
-        `INSERT INTO "emotional_checkins" (id, user_id, mood, energy, stress) VALUES ('fixture-checkin', 'fixture-patient', 7, 6, 4)`,
+        `INSERT INTO "emotional_checkins" (id, user_id, "moodScore", "energyLevel", "anxietyLevel") VALUES ('fixture-checkin', 'fixture-patient', 7, 6, 4)`,
       );
 
       await client.query(
