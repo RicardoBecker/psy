@@ -398,7 +398,17 @@ Reduzir exposição conhecida da cadeia de dependências e endurecer as fronteir
 
 ### CR-05.2 — Atualizar dependências vulneráveis do backend
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `npm audit fix` (sem `--force`) resolveu `fflate`/`file-type` diretos e `brace-expansion`. `tar` (crítico, via `bcrypt → @mapbox/node-pre-gyp`) e `qs` (moderado, via `@nestjs/platform-express`/`express`) ficavam presos em versões antigas porque seus pais diretos declaram ranges major que o resolver padrão do npm não ultrapassa — corrigido com `overrides` no `package.json` (`tar: ^7.5.22`, `qs: ^6.16.0`), forçando as versões patcheadas sem tocar nos pacotes de topo. `npm audit --omit=dev`: de 13 vulnerabilidades (1 crítica, 5 altas) para 8 (0 crítica, 3 altas) — nenhuma crítica restante.
+  Validado que o override não quebra nada: suíte completa (46/46), `tsc --noEmit`, `npm run build` limpos; `npm ci` testado em diretório isolado reproduz exatamente `tar@7.5.22`/`qs@6.16.0`; `bcrypt.hash()` real testado nessa instalação isolada, confirmando que o binário nativo (que depende de `node-pre-gyp`/`tar` no install) continua funcionando com o `tar` forçado.
+
+  **Exceção formal — vulnerabilidades residuais que exigem NestJS 10→12 (dois majors):**
+  - **Vulnerabilidades:** `lodash` high (via `@nestjs/config`), `multer` high (via `@nestjs/platform-express`), `file-type` moderate (via `@nestjs/common`), `body-parser` low (via `@nestjs/platform-express`/`express`; a correção é `body-parser@2.x`, feito para Express 5, potencialmente incompatível com o Express 4 que este projeto usa).
+  - **Análise de alcance:** `multer` **não é usado em nenhuma rota** deste projeto (`grep` por `multer|FileInterceptor|@UploadedFile` em `src/` não encontra nada) — é puro peso morto trazido pelo `@nestjs/platform-express`, sem superfície de ataque real hoje. `lodash`/`file-type` são usados internamente pelo NestJS/seus pacotes auxiliares (leitura de config, utilitários), não por código deste projeto processando entrada de usuário diretamente — as funções vulneráveis (`_.template`, `_.unset`, `_.omit` com paths controlados por atacante; parsing de arquivo malformado) não têm caminho de entrada óbvio a partir de uma requisição HTTP nesta aplicação.
+  - **Mitigação:** nenhuma ação de código necessária hoje, dado o alcance acima. Se upload de arquivo for implementado no futuro, reavaliar `multer` antes de habilitá-lo.
+  - **Correção completa:** requer subir `@nestjs/common`, `@nestjs/core`, `@nestjs/config` e `@nestjs/platform-express` de uma vez para a linha 12.x (dois majors à frente da 10.x atual) — mudança de peso comparável à atualização do Next.js em `CR-05.1`, precisa de sua própria rodada de testes de regressão (guards, strategies, DI, upload se vier a existir). Fora do escopo de uma atualização de dependências.
+  - **Responsável:** Ricardo (dono do projeto).
+  - **Prazo:** mesmo prazo de `CR-05.1` — antes do primeiro deploy em produção pública, ou em até 90 dias corridos a partir de 2026-09-23, o que ocorrer primeiro.
 - **Prioridade:** P2
 - **Origem:** audit encontrou vulnerabilidades críticas/altas em dependências transitivas e no stack Nest/Express.
 - **User story:** Como operador, quero executar a API em dependências corrigidas sem quebrar contratos.
