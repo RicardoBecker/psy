@@ -9,7 +9,7 @@ describe('PsychologistService — descoberta e convite só para psicólogo verif
   let prisma: {
     psychologistProfile: { findUnique: jest.Mock };
     user: { findUnique: jest.Mock; findMany: jest.Mock };
-    patientPsychologistLink: { findMany: jest.Mock; findUnique: jest.Mock; create: jest.Mock };
+    patientPsychologistLink: { findMany: jest.Mock; findUnique: jest.Mock; create: jest.Mock; update: jest.Mock };
   };
 
   const PSYCHOLOGIST_ID = 'psy-1';
@@ -19,7 +19,7 @@ describe('PsychologistService — descoberta e convite só para psicólogo verif
     prisma = {
       psychologistProfile: { findUnique: jest.fn() },
       user: { findUnique: jest.fn(), findMany: jest.fn() },
-      patientPsychologistLink: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
+      patientPsychologistLink: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -128,6 +128,103 @@ describe('PsychologistService — descoberta e convite só para psicólogo verif
 
       expect(result).toEqual({ id: 'link-1', consentStatus: ConsentStatus.PENDING });
       expect(prisma.patientPsychologistLink.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('approvePatientLink / rejectPatientLink — só o próprio paciente ou admin (CR-06.2)', () => {
+    const LINK_ID = 'link-1';
+    const baseLink = { id: LINK_ID, patientId: PATIENT_ID, psychologistId: PSYCHOLOGIST_ID };
+
+    it('o próprio paciente consegue aprovar', async () => {
+      prisma.patientPsychologistLink.findUnique.mockResolvedValue(baseLink);
+      prisma.user.findUnique.mockResolvedValue({ id: PATIENT_ID, role: Role.PATIENT });
+      (prisma.patientPsychologistLink.update as jest.Mock).mockResolvedValue({
+        ...baseLink,
+        consentStatus: ConsentStatus.APPROVED,
+      });
+
+      const result = await service.approvePatientLink(LINK_ID, PATIENT_ID);
+      expect(result.consentStatus).toBe(ConsentStatus.APPROVED);
+    });
+
+    it('o psicólogo do próprio vínculo NÃO consegue aprovar o próprio convite (só o paciente ou admin)', async () => {
+      prisma.patientPsychologistLink.findUnique.mockResolvedValue(baseLink);
+      prisma.user.findUnique.mockResolvedValue({ id: PSYCHOLOGIST_ID, role: Role.PSYCHOLOGIST });
+
+      await expect(service.approvePatientLink(LINK_ID, PSYCHOLOGIST_ID)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(prisma.patientPsychologistLink.update).not.toHaveBeenCalled();
+    });
+
+    it('um paciente alheio (IDOR) não consegue aprovar o vínculo de outro paciente', async () => {
+      prisma.patientPsychologistLink.findUnique.mockResolvedValue(baseLink);
+      prisma.user.findUnique.mockResolvedValue({ id: 'other-patient', role: Role.PATIENT });
+
+      await expect(service.approvePatientLink(LINK_ID, 'other-patient')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('admin consegue aprovar', async () => {
+      prisma.patientPsychologistLink.findUnique.mockResolvedValue(baseLink);
+      prisma.user.findUnique.mockResolvedValue({ id: 'admin-1', role: Role.ADMIN });
+      (prisma.patientPsychologistLink.update as jest.Mock).mockResolvedValue({
+        ...baseLink,
+        consentStatus: ConsentStatus.APPROVED,
+      });
+
+      await expect(service.approvePatientLink(LINK_ID, 'admin-1')).resolves.toBeDefined();
+    });
+
+    it('404 ao tentar aprovar/rejeitar um vínculo inexistente', async () => {
+      prisma.patientPsychologistLink.findUnique.mockResolvedValue(null);
+
+      await expect(service.approvePatientLink('nao-existe', PATIENT_ID)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      await expect(service.rejectPatientLink('nao-existe', PATIENT_ID)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('aprovar duas vezes seguidas (transição repetida) continua idempotente — sem erro, permanece APPROVED', async () => {
+      prisma.patientPsychologistLink.findUnique.mockResolvedValue({
+        ...baseLink,
+        consentStatus: ConsentStatus.APPROVED,
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: PATIENT_ID, role: Role.PATIENT });
+      (prisma.patientPsychologistLink.update as jest.Mock).mockResolvedValue({
+        ...baseLink,
+        consentStatus: ConsentStatus.APPROVED,
+      });
+
+      const result = await service.approvePatientLink(LINK_ID, PATIENT_ID);
+      expect(result.consentStatus).toBe(ConsentStatus.APPROVED);
+    });
+
+    it('rejeitar um vínculo já aprovado transiciona para REJECTED (paciente pode revogar via reject)', async () => {
+      prisma.patientPsychologistLink.findUnique.mockResolvedValue({
+        ...baseLink,
+        consentStatus: ConsentStatus.APPROVED,
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: PATIENT_ID, role: Role.PATIENT });
+      (prisma.patientPsychologistLink.update as jest.Mock).mockResolvedValue({
+        ...baseLink,
+        consentStatus: ConsentStatus.REJECTED,
+      });
+
+      const result = await service.rejectPatientLink(LINK_ID, PATIENT_ID);
+      expect(result.consentStatus).toBe(ConsentStatus.REJECTED);
+    });
+
+    it('um usuário completamente alheio não consegue rejeitar', async () => {
+      prisma.patientPsychologistLink.findUnique.mockResolvedValue(baseLink);
+      prisma.user.findUnique.mockResolvedValue({ id: 'stranger-1', role: Role.PATIENT });
+
+      await expect(service.rejectPatientLink(LINK_ID, 'stranger-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
   });
 });

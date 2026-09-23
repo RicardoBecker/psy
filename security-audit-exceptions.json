@@ -1,0 +1,49 @@
+{
+  "_readme": "Exceções formais e com prazo às vulnerabilidades critical/high do npm audit de produção, exigidas por IA/BACKLOG_CODE_REVIEW.md (CR-05.1, CR-05.2, CR-06.4). scripts/check-audit.js falha o build para qualquer vulnerabilidade critical/high que NÃO esteja listada aqui, ou cujo prazo (expires) já tenha passado — uma exceção expirada volta a bloquear o merge até ser renovada ou de fato corrigida.",
+  "apps/backend": {
+    "lodash": {
+      "reason": "Transitivo via @nestjs/config (Code Injection/Prototype Pollution em _.template/_.unset/_.omit). Não é chamado diretamente por código deste projeto; @nestjs/config só o usa para merge de configuração lida de variáveis de ambiente, sem entrada de usuário.",
+      "responsible": "Ricardo (dono do projeto)",
+      "expires": "2026-12-22",
+      "fix": "Requer @nestjs/config@12.x, que exige @nestjs/common/core ^11 || ^12 — upgrade major de todo o stack NestJS (10→12)."
+    },
+    "multer": {
+      "reason": "Transitivo via @nestjs/platform-express (várias DoS). Confirmado: nenhuma rota do projeto usa multer/FileInterceptor/@UploadedFile — peso morto, sem superfície de ataque real hoje.",
+      "responsible": "Ricardo (dono do projeto)",
+      "expires": "2026-12-22",
+      "fix": "Requer @nestjs/platform-express@12.x — mesmo upgrade major do lodash acima."
+    },
+    "@nestjs/platform-express": {
+      "reason": "Reportado como 'high' só por depender de multer/body-parser vulneráveis (ver acima) — mesma causa raiz, mesma mitigação.",
+      "responsible": "Ricardo (dono do projeto)",
+      "expires": "2026-12-22",
+      "fix": "Resolve junto do upgrade para @nestjs/platform-express@12.x."
+    },
+    "file-type": {
+      "reason": "Transitivo via @nestjs/common (parsing de arquivo). Não é usado por upload de arquivo neste projeto (não implementado).",
+      "responsible": "Ricardo (dono do projeto)",
+      "expires": "2026-12-22",
+      "fix": "Resolve junto do upgrade do @nestjs/common acima."
+    },
+    "body-parser": {
+      "reason": "Transitivo via @nestjs/platform-express/express. A correção é body-parser@2.x, feito para Express 5 — potencialmente incompatível com o Express 4 que este projeto usa.",
+      "responsible": "Ricardo (dono do projeto)",
+      "expires": "2026-12-22",
+      "fix": "Reavaliar junto da migração para Express 5 / NestJS 12."
+    }
+  },
+  "apps/frontend": {
+    "next": {
+      "reason": "App não usa next/image (sem remotePatterns), Server Actions ('use server'), i18n de rota nem rewrites — a maior parte da superfície das advisories agregadas não é alcançável pelo código atual. Middleware é usado, mas já documentado como camada de UX, não de autorização (o backend é a fronteira real, CR-02.2).",
+      "responsible": "Ricardo (dono do projeto)",
+      "expires": "2026-12-22",
+      "fix": "Requer upgrade major para Next 15/16 — mudança de React e possíveis breaking changes no App Router, precisa de rodada própria de testes de regressão."
+    },
+    "postcss": {
+      "reason": "Vendorizado dentro do próprio pacote next (node_modules/next/node_modules/postcss) — não é o postcss de topo do projeto, já atualizado. Resolve junto do upgrade do Next acima.",
+      "responsible": "Ricardo (dono do projeto)",
+      "expires": "2026-12-22",
+      "fix": "Resolve automaticamente com o upgrade do Next para 15/16."
+    }
+  }
+}

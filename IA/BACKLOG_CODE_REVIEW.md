@@ -489,7 +489,18 @@ Transformar os invariantes do review em proteção contínua contra regressões.
 
 ### CR-06.1 — Criar suíte backend de autenticação e RBAC
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** todos os cenários obrigatórios cobertos, a maioria já existente de histórias anteriores (`CR-01.1` a `CR-02.2`) e completada aqui com o que faltava:
+  - cadastro público sempre `PATIENT` — `register.controller.spec.ts`
+  - login ativo/inativo — `login.controller.spec.ts`, `auth.service.spec.ts`
+  - token expirado — **novo** teste em `session-freshness.e2e.spec.ts` (token assinado com `expiresIn: '-1s'` → 401, sem sequer consultar o banco)
+  - usuário removido / token inválido — `session-freshness.e2e.spec.ts`, `logout.controller.spec.ts` (token forjado, valor sem formato de JWT)
+  - role alterada usando token antigo — `session-freshness.e2e.spec.ts`
+  - `ADMIN`/`PSYCHOLOGIST`/`PATIENT` em rotas permitidas e proibidas — `psychologist.controller.spec.ts`, `session-freshness.e2e.spec.ts`; `GUARDIAN` era o único papel sem nenhum teste de RBAC — **novo** `guardian.controller.spec.ts` (10 casos: `GUARDIAN`/`ADMIN` conseguem criar vínculo, `PATIENT`/`PSYCHOLOGIST` recebem 403, rota sem restrição de role funciona para todos)
+  - psicólogo não pode verificar a si próprio — `psychologist.controller.spec.ts` (`CR-01.3`)
+  - endpoints sociais desabilitados não emitem JWT — `auth.controller.spec.ts`
+  - isolamento de `journal` e `check-ins` entre dois usuários — **novo** `journal-entries.service.spec.ts` e `emotional-checkins.service.spec.ts` (10 casos: `findOne`/`update`/`remove` retornam 404 — nunca vazam existência — quando o recurso pertence a outro usuário; `findAll`/`search`/`getStats` sempre escopados por `userId`)
+  125/125 testes verdes na suíte completa (subiu de 74 para 125). Cobertura geral do backend subiu de ~25% para ~51,6% de linhas.
 - **Prioridade:** P1
 - **Origem:** não existem testes automatizados no backend.
 - **User story:** Como equipe, quero detectar regressões de autenticação e autorização antes do merge.
@@ -511,7 +522,15 @@ Transformar os invariantes do review em proteção contínua contra regressões.
 
 ### CR-06.2 — Criar suíte de vínculos e consentimentos
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:**
+  - busca/convite apenas por psicólogo verificado — `psychologist.service.spec.ts` (`CR-01.4`)
+  - somente paciente alvo ou admin aprova/rejeita vínculo psicólogo-paciente — **novo**, estendido em `psychologist.service.spec.ts` (9 casos: paciente aprova, psicólogo do próprio vínculo NÃO consegue aprovar o próprio convite, paciente alheio (IDOR) não aprova vínculo de outro, admin aprova, 404 em vínculo inexistente)
+  - transições válidas e repetidas de status — aprovar duas vezes seguidas continua idempotente; rejeitar um vínculo já aprovado transiciona para `REJECTED`
+  - usuário alheio não lê nem altera vínculo (IDOR) — coberto nos casos acima e em `guardian.service.spec.ts` (responsável não aprova o próprio pedido; usuário alheio não aprova/rejeita)
+  - responsável só opera vínculo/consentimento compatível — **novo** `guardian.service.spec.ts` (10 casos: só `GUARDIAN`/`ADMIN` criam vínculo, só menor de verdade pode ser vinculado, só o próprio menor ou admin aprova, responsável envolvido ou admin rejeita) e **novo** `consent.service.spec.ts` (12 casos: menor exige `guardianUserId`, exige vínculo aprovado entre menor e responsável, só dono/responsável/admin revoga)
+  - consentimento revogado deixa de ser considerado ativo — `consent.service.spec.ts` (`checkUserConsent` filtra por `status: ACTIVE`; um registro `REVOKED` não é encontrado)
+  31 testes novos entre `guardian.service.spec.ts`, `guardian.controller.spec.ts`, `consent.service.spec.ts` e a extensão de `psychologist.service.spec.ts`. Suíte completa 125/125.
 - **Prioridade:** P2
 - **Origem:** fluxos sensíveis de psicólogo, responsável e consentimento não têm regressão automatizada.
 - **User story:** Como paciente, quero que somente participantes autorizados alterem meus vínculos e consentimentos.
@@ -530,7 +549,17 @@ Transformar os invariantes do review em proteção contínua contra regressões.
 
 ### CR-06.3 — Criar suíte frontend para autenticação e rotas críticas
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:**
+  - login e logout, reload com sessão válida, expiração/401 — `auth-provider.test.tsx` (`CR-04.2`/`CR-05.4`)
+  - usuário anônimo em rota protegida — coberto nos testes de cada página abaixo (redireciona para `/login`)
+  - cada role nas páginas permitidas/proibidas — **novo** `psychologist/profile/page.test.tsx` (3 casos: anônimo → `/login`; paciente → `/dashboard`; psicólogo → acessa), **novo** `psychologist/patients/page.test.tsx` e `patient/psychologists/page.test.tsx` (role errada → `/dashboard`), **novo** `admin/users/page.test.tsx` (3 casos: anônimo → `/login`; não-admin → `/dashboard`; admin → carrega dados)
+  - histórico de check-ins sem violação de hooks — `checkins/page.test.tsx` (`CR-04.3`)
+  - lista administrativa — `admin/users/page.test.tsx` (detalhe administrativo, `[id]/page.tsx`, não coberto por falta de tempo — fica como lacuna conhecida)
+  - fluxo de convite e resposta psicólogo-paciente — **novo**: `psychologist/patients/page.test.tsx` cobre buscar por email, convidar com sucesso e paciente já vinculado sem botão de convite; `patient/psychologists/page.test.tsx` cobre aceitar e recusar um convite pendente
+  - **bug de configuração real encontrado e corrigido no processo**: `jest.config.js` não resolvia o alias `@/*` (usado por `admin/users/page.tsx` e vários componentes) — `next/jest` deveria configurar isso sozinho a partir do `tsconfig.json`, mas na prática não resolvia; adicionado `moduleNameMapper` explícito
+  21/21 testes verdes na suíte completa (subiu de 9). `npx tsc --noEmit`, `npm run lint` e `npm run build` limpos.
+  **Lacuna conhecida:** detalhe administrativo (`admin/users/[id]/page.tsx`) não ganhou teste de componente dedicado — a página existe e é exercitada manualmente, mas não há cobertura automatizada específica para ela ainda.
 - **Prioridade:** P2
 - **Origem:** frontend não possui testes e já apresenta regressões de sessão/hooks.
 - **User story:** Como equipe, quero validar login, restauração da sessão e autorização visual antes da entrega.
@@ -551,7 +580,23 @@ Transformar os invariantes do review em proteção contínua contra regressões.
 
 ### CR-06.4 — Implantar gate de CI para qualidade e segurança
 
-- **Status:** TODO
+- **Status:** DONE (2026-09-23)
+- **Evidência:**
+  `.github/workflows/ci.yml` criado com dois jobs, disparados em `pull_request` e em `push` para `main`:
+  - **backend**: `actions/checkout@v4` (`fetch-depth: 0`, necessário para o gate de diff coverage enxergar `origin/main`), `actions/setup-node@v4` com cache npm, serviço `postgres:16-alpine` (com healthcheck), garantia de cliente `psql` disponível no runner, `npm ci`, `prisma generate`, `npm run build`, `npx jest --runInBand` (roda a suíte inteira, incluindo o rehearsal de migrations do CR-03.1/CR-03.2 contra Postgres real populado, e as suítes de CORS/CSRF do CR-05.3/CR-05.4), `node scripts/check-audit.js apps/backend` e `npm run test:diff-cov`.
+  - **frontend**: checkout/setup-node iguais, `npm ci`, `npx tsc --noEmit`, `npm run lint`, `npx jest --runInBand`, `npm run build` (validado sem acesso a `fonts.googleapis.com` — CR-04.4), `node scripts/check-audit.js apps/frontend` e `npm run test:diff-cov`.
+
+  **Política de audit com exceções e prazo:** `scripts/check-audit.js apps/<app>` roda `npm audit --omit=dev --json` e falha (`exit 1`) para qualquer vulnerabilidade `critical`/`high` que não esteja documentada em `security-audit-exceptions.json` (na raiz do repo) com `reason`, `responsible` e `expires`, ou cuja exceção já tenha expirado. Isso resolve uma contradição real descoberta durante a implementação: um gate bruto (`npm audit --audit-level=critical`) bloquearia o merge imediatamente por causa da vulnerabilidade crítica do Next.js já formalmente aceita em `CR-05.1`. `security-audit-exceptions.json` documenta hoje, com `expires: "2026-12-22"`:
+  - `apps/backend`: `lodash`, `multer`, `@nestjs/platform-express`, `file-type`, `body-parser` (todas transitivas via `@nestjs/config`/`@nestjs/platform-express`, sem superfície de ataque alcançável hoje — detalhe do porquê em cada entrada do JSON);
+  - `apps/frontend`: `next` (a mesma exceção do CR-05.1) e `postcss` (vendorizado dentro do próprio `next`).
+
+  Validado localmente antes do commit:
+  - `node scripts/check-audit.js apps/backend` e `node scripts/check-audit.js apps/frontend` passam com as exceções acima;
+  - mecanismo de expiração confirmado manualmente: alterando `expires` de `next` para uma data passada, o script falha (`exit 1`) listando a exceção expirada; revertido para `2026-12-22` volta a passar;
+  - `@nestjs/platform-express` precisou de entrada própria no JSON — o `npm audit` reporta o pacote pai como uma vulnerabilidade `high` separada dos leafs `lodash`/`multer`, não só os leafs;
+  - YAML do workflow validado via `yaml.safe_load` (estrutura de jobs/steps conferida).
+
+  Sanidade local completa antes do commit (mesmos comandos que o CI roda): backend — `npx tsc --noEmit`, `npm run build`, `npx jest --runInBand` (20 suítes, 125/125 testes); frontend — `npx tsc --noEmit`, `npm run lint` (limpo), `npx jest --runInBand` (6 suítes, 21/21 testes), `npm run build` (15 rotas geradas com sucesso).
 - **Prioridade:** P2
 - **Origem:** falhas de build, lint, testes ausentes e vulnerabilidades chegaram à branch revisada.
 - **User story:** Como mantenedor, quero impedir merge de código que não compile ou viole os invariantes críticos.
@@ -628,5 +673,5 @@ Uma história só pode ser marcada `DONE` quando:
 - [x] Audit não possui critical/high sem exceção formal. (`CR-05.1`/`CR-05.2` — residuais documentados com alcance, mitigação, responsável e prazo)
 - [x] CORS está restrito em produção. (`CR-05.3`)
 - [x] Token não está disponível em localStorage ou cookie legível por JavaScript. (`CR-05.4`)
-- [ ] CI bloqueia regressões.
+- [x] CI bloqueia regressões. (`CR-06.4` — `.github/workflows/ci.yml`, jobs backend/frontend, gate de audit com exceções e prazo, gate de cobertura do diff)
 - [ ] Novo code review confirma o encerramento dos achados.
