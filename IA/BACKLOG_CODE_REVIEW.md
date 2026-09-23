@@ -549,7 +549,17 @@ Transformar os invariantes do review em proteção contínua contra regressões.
 
 ### CR-06.3 — Criar suíte frontend para autenticação e rotas críticas
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:**
+  - login e logout, reload com sessão válida, expiração/401 — `auth-provider.test.tsx` (`CR-04.2`/`CR-05.4`)
+  - usuário anônimo em rota protegida — coberto nos testes de cada página abaixo (redireciona para `/login`)
+  - cada role nas páginas permitidas/proibidas — **novo** `psychologist/profile/page.test.tsx` (3 casos: anônimo → `/login`; paciente → `/dashboard`; psicólogo → acessa), **novo** `psychologist/patients/page.test.tsx` e `patient/psychologists/page.test.tsx` (role errada → `/dashboard`), **novo** `admin/users/page.test.tsx` (3 casos: anônimo → `/login`; não-admin → `/dashboard`; admin → carrega dados)
+  - histórico de check-ins sem violação de hooks — `checkins/page.test.tsx` (`CR-04.3`)
+  - lista administrativa — `admin/users/page.test.tsx` (detalhe administrativo, `[id]/page.tsx`, não coberto por falta de tempo — fica como lacuna conhecida)
+  - fluxo de convite e resposta psicólogo-paciente — **novo**: `psychologist/patients/page.test.tsx` cobre buscar por email, convidar com sucesso e paciente já vinculado sem botão de convite; `patient/psychologists/page.test.tsx` cobre aceitar e recusar um convite pendente
+  - **bug de configuração real encontrado e corrigido no processo**: `jest.config.js` não resolvia o alias `@/*` (usado por `admin/users/page.tsx` e vários componentes) — `next/jest` deveria configurar isso sozinho a partir do `tsconfig.json`, mas na prática não resolvia; adicionado `moduleNameMapper` explícito
+  21/21 testes verdes na suíte completa (subiu de 9). `npx tsc --noEmit`, `npm run lint` e `npm run build` limpos.
+  **Lacuna conhecida:** detalhe administrativo (`admin/users/[id]/page.tsx`) não ganhou teste de componente dedicado — a página existe e é exercitada manualmente, mas não há cobertura automatizada específica para ela ainda.
 - **Prioridade:** P2
 - **Origem:** frontend não possui testes e já apresenta regressões de sessão/hooks.
 - **User story:** Como equipe, quero validar login, restauração da sessão e autorização visual antes da entrega.
