@@ -1,10 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { buildCorsOptions } from './common/cors.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
@@ -14,7 +15,7 @@ async function bootstrap() {
   );
 
   app.setGlobalPrefix('api/v1');
-  app.enableCors();
+  app.enableCors(buildCorsOptions());
 
   const port = process.env.PORT || 3001;
   // 🌐 Bind explícito em todas as interfaces para ser acessível via IP na rede local
