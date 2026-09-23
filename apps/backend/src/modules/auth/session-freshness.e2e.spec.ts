@@ -113,4 +113,30 @@ describe('Session freshness — same old token, DB state decides access (CR-02.2
 
     expect(res.status).toBe(401);
   });
+
+  it('an expired token is rejected with 401, even for an active ADMIN in the DB (CR-06.1)', async () => {
+    usersService.findById.mockResolvedValue({
+      id: 'user-1',
+      email: 'user@example.com',
+      role: 'ADMIN',
+      ageGroup: 'ADULT',
+      isActive: true,
+    });
+
+    const expiredToken = jwtService.sign(
+      { sub: 'user-1', email: 'user@example.com', role: 'ADMIN', ageGroup: 'ADULT' },
+      { expiresIn: '-1s' }, // já nasce expirado
+    );
+
+    usersService.findById.mockClear();
+
+    const res = await request(app.getHttpServer())
+      .get('/users/profile')
+      .set('Cookie', `${SESSION_COOKIE_NAME}=${expiredToken}`);
+
+    expect(res.status).toBe(401);
+    // não deve nem consultar o banco — falha na verificação de expiração,
+    // antes de qualquer lookup de usuário
+    expect(usersService.findById).not.toHaveBeenCalled();
+  });
 });

@@ -489,7 +489,18 @@ Transformar os invariantes do review em proteção contínua contra regressões.
 
 ### CR-06.1 — Criar suíte backend de autenticação e RBAC
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** todos os cenários obrigatórios cobertos, a maioria já existente de histórias anteriores (`CR-01.1` a `CR-02.2`) e completada aqui com o que faltava:
+  - cadastro público sempre `PATIENT` — `register.controller.spec.ts`
+  - login ativo/inativo — `login.controller.spec.ts`, `auth.service.spec.ts`
+  - token expirado — **novo** teste em `session-freshness.e2e.spec.ts` (token assinado com `expiresIn: '-1s'` → 401, sem sequer consultar o banco)
+  - usuário removido / token inválido — `session-freshness.e2e.spec.ts`, `logout.controller.spec.ts` (token forjado, valor sem formato de JWT)
+  - role alterada usando token antigo — `session-freshness.e2e.spec.ts`
+  - `ADMIN`/`PSYCHOLOGIST`/`PATIENT` em rotas permitidas e proibidas — `psychologist.controller.spec.ts`, `session-freshness.e2e.spec.ts`; `GUARDIAN` era o único papel sem nenhum teste de RBAC — **novo** `guardian.controller.spec.ts` (10 casos: `GUARDIAN`/`ADMIN` conseguem criar vínculo, `PATIENT`/`PSYCHOLOGIST` recebem 403, rota sem restrição de role funciona para todos)
+  - psicólogo não pode verificar a si próprio — `psychologist.controller.spec.ts` (`CR-01.3`)
+  - endpoints sociais desabilitados não emitem JWT — `auth.controller.spec.ts`
+  - isolamento de `journal` e `check-ins` entre dois usuários — **novo** `journal-entries.service.spec.ts` e `emotional-checkins.service.spec.ts` (10 casos: `findOne`/`update`/`remove` retornam 404 — nunca vazam existência — quando o recurso pertence a outro usuário; `findAll`/`search`/`getStats` sempre escopados por `userId`)
+  125/125 testes verdes na suíte completa (subiu de 74 para 125). Cobertura geral do backend subiu de ~25% para ~51,6% de linhas.
 - **Prioridade:** P1
 - **Origem:** não existem testes automatizados no backend.
 - **User story:** Como equipe, quero detectar regressões de autenticação e autorização antes do merge.
@@ -511,7 +522,15 @@ Transformar os invariantes do review em proteção contínua contra regressões.
 
 ### CR-06.2 — Criar suíte de vínculos e consentimentos
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:**
+  - busca/convite apenas por psicólogo verificado — `psychologist.service.spec.ts` (`CR-01.4`)
+  - somente paciente alvo ou admin aprova/rejeita vínculo psicólogo-paciente — **novo**, estendido em `psychologist.service.spec.ts` (9 casos: paciente aprova, psicólogo do próprio vínculo NÃO consegue aprovar o próprio convite, paciente alheio (IDOR) não aprova vínculo de outro, admin aprova, 404 em vínculo inexistente)
+  - transições válidas e repetidas de status — aprovar duas vezes seguidas continua idempotente; rejeitar um vínculo já aprovado transiciona para `REJECTED`
+  - usuário alheio não lê nem altera vínculo (IDOR) — coberto nos casos acima e em `guardian.service.spec.ts` (responsável não aprova o próprio pedido; usuário alheio não aprova/rejeita)
+  - responsável só opera vínculo/consentimento compatível — **novo** `guardian.service.spec.ts` (10 casos: só `GUARDIAN`/`ADMIN` criam vínculo, só menor de verdade pode ser vinculado, só o próprio menor ou admin aprova, responsável envolvido ou admin rejeita) e **novo** `consent.service.spec.ts` (12 casos: menor exige `guardianUserId`, exige vínculo aprovado entre menor e responsável, só dono/responsável/admin revoga)
+  - consentimento revogado deixa de ser considerado ativo — `consent.service.spec.ts` (`checkUserConsent` filtra por `status: ACTIVE`; um registro `REVOKED` não é encontrado)
+  31 testes novos entre `guardian.service.spec.ts`, `guardian.controller.spec.ts`, `consent.service.spec.ts` e a extensão de `psychologist.service.spec.ts`. Suíte completa 125/125.
 - **Prioridade:** P2
 - **Origem:** fluxos sensíveis de psicólogo, responsável e consentimento não têm regressão automatizada.
 - **User story:** Como paciente, quero que somente participantes autorizados alterem meus vínculos e consentimentos.
