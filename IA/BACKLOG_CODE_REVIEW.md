@@ -580,7 +580,23 @@ Transformar os invariantes do review em proteção contínua contra regressões.
 
 ### CR-06.4 — Implantar gate de CI para qualidade e segurança
 
-- **Status:** TODO
+- **Status:** DONE (2026-09-23)
+- **Evidência:**
+  `.github/workflows/ci.yml` criado com dois jobs, disparados em `pull_request` e em `push` para `main`:
+  - **backend**: `actions/checkout@v4` (`fetch-depth: 0`, necessário para o gate de diff coverage enxergar `origin/main`), `actions/setup-node@v4` com cache npm, serviço `postgres:16-alpine` (com healthcheck), garantia de cliente `psql` disponível no runner, `npm ci`, `prisma generate`, `npm run build`, `npx jest --runInBand` (roda a suíte inteira, incluindo o rehearsal de migrations do CR-03.1/CR-03.2 contra Postgres real populado, e as suítes de CORS/CSRF do CR-05.3/CR-05.4), `node scripts/check-audit.js apps/backend` e `npm run test:diff-cov`.
+  - **frontend**: checkout/setup-node iguais, `npm ci`, `npx tsc --noEmit`, `npm run lint`, `npx jest --runInBand`, `npm run build` (validado sem acesso a `fonts.googleapis.com` — CR-04.4), `node scripts/check-audit.js apps/frontend` e `npm run test:diff-cov`.
+
+  **Política de audit com exceções e prazo:** `scripts/check-audit.js apps/<app>` roda `npm audit --omit=dev --json` e falha (`exit 1`) para qualquer vulnerabilidade `critical`/`high` que não esteja documentada em `security-audit-exceptions.json` (na raiz do repo) com `reason`, `responsible` e `expires`, ou cuja exceção já tenha expirado. Isso resolve uma contradição real descoberta durante a implementação: um gate bruto (`npm audit --audit-level=critical`) bloquearia o merge imediatamente por causa da vulnerabilidade crítica do Next.js já formalmente aceita em `CR-05.1`. `security-audit-exceptions.json` documenta hoje, com `expires: "2026-12-22"`:
+  - `apps/backend`: `lodash`, `multer`, `@nestjs/platform-express`, `file-type`, `body-parser` (todas transitivas via `@nestjs/config`/`@nestjs/platform-express`, sem superfície de ataque alcançável hoje — detalhe do porquê em cada entrada do JSON);
+  - `apps/frontend`: `next` (a mesma exceção do CR-05.1) e `postcss` (vendorizado dentro do próprio `next`).
+
+  Validado localmente antes do commit:
+  - `node scripts/check-audit.js apps/backend` e `node scripts/check-audit.js apps/frontend` passam com as exceções acima;
+  - mecanismo de expiração confirmado manualmente: alterando `expires` de `next` para uma data passada, o script falha (`exit 1`) listando a exceção expirada; revertido para `2026-12-22` volta a passar;
+  - `@nestjs/platform-express` precisou de entrada própria no JSON — o `npm audit` reporta o pacote pai como uma vulnerabilidade `high` separada dos leafs `lodash`/`multer`, não só os leafs;
+  - YAML do workflow validado via `yaml.safe_load` (estrutura de jobs/steps conferida).
+
+  Sanidade local completa antes do commit (mesmos comandos que o CI roda): backend — `npx tsc --noEmit`, `npm run build`, `npx jest --runInBand` (20 suítes, 125/125 testes); frontend — `npx tsc --noEmit`, `npm run lint` (limpo), `npx jest --runInBand` (6 suítes, 21/21 testes), `npm run build` (15 rotas geradas com sucesso).
 - **Prioridade:** P2
 - **Origem:** falhas de build, lint, testes ausentes e vulnerabilidades chegaram à branch revisada.
 - **User story:** Como mantenedor, quero impedir merge de código que não compile ou viole os invariantes críticos.
@@ -657,5 +673,5 @@ Uma história só pode ser marcada `DONE` quando:
 - [x] Audit não possui critical/high sem exceção formal. (`CR-05.1`/`CR-05.2` — residuais documentados com alcance, mitigação, responsável e prazo)
 - [x] CORS está restrito em produção. (`CR-05.3`)
 - [x] Token não está disponível em localStorage ou cookie legível por JavaScript. (`CR-05.4`)
-- [ ] CI bloqueia regressões.
+- [x] CI bloqueia regressões. (`CR-06.4` — `.github/workflows/ci.yml`, jobs backend/frontend, gate de audit com exceções e prazo, gate de cobertura do diff)
 - [ ] Novo code review confirma o encerramento dos achados.

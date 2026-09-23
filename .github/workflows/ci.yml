@@ -1,0 +1,134 @@
+name: CI
+
+# CR-06.4 (IA/BACKLOG_CODE_REVIEW.md): impede merge de código que não
+# compile, não passe nos testes ou viole os invariantes críticos de
+# segurança descobertos no code review. Roda em toda PR e em push na main.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  backend:
+    name: Backend — build, testes, migrations, audit
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: emotional_app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/emotional_app
+      TEST_DATABASE_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      JWT_SECRET: ci-only-secret-not-for-production
+      NODE_ENV: development
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # necessário para o gate de diff coverage comparar com origin/main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/backend/package-lock.json
+
+      # A maioria das imagens ubuntu-latest já traz o cliente psql, mas não é
+      # garantido — os testes de migration (CR-03.1/CR-03.2) dependem dele.
+      - name: Garante cliente psql disponível
+        run: which psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+
+      - name: npm ci
+        working-directory: apps/backend
+        run: npm ci
+
+      - name: Prisma generate
+        working-directory: apps/backend
+        run: npx prisma generate
+
+      - name: Build
+        working-directory: apps/backend
+        run: npm run build
+
+      # Testes: inclui a suíte de auth/RBAC (CR-06.1), vínculos/consentimento
+      # (CR-06.2), CORS/CSRF (CR-05.3/CR-05.4) e o rehearsal de migrations
+      # contra PostgreSQL 16 populado (CR-03.1/CR-03.2) — tudo roda junto
+      # via jest, sem job separado.
+      - name: Testes (inclui migrations com Postgres 16 populado)
+        working-directory: apps/backend
+        run: npx jest --runInBand
+
+      # Política de audit (CR-05.2/CR-06.4): toda vulnerabilidade
+      # critical/high precisa estar em security-audit-exceptions.json, com
+      # responsável e prazo — uma exceção expirada volta a bloquear o
+      # merge. Ver esse arquivo para o racional de cada exceção aceita hoje.
+      - name: Audit de produção (exceções documentadas com prazo)
+        run: node scripts/check-audit.js apps/backend
+
+      # fetch-depth: 0 no checkout já traz o histórico completo, incluindo
+      # origin/main, então o script de diff coverage o enxerga sem passo
+      # extra de fetch.
+      - name: Gate de cobertura do diff (meta 90%)
+        working-directory: apps/backend
+        run: npm run test:diff-cov
+
+  frontend:
+    name: Frontend — type-check, lint, testes, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: npm ci
+        working-directory: apps/frontend
+        run: npm ci
+
+      - name: Type-check
+        working-directory: apps/frontend
+        run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: apps/frontend
+        run: npm run lint
+
+      - name: Testes
+        working-directory: apps/frontend
+        run: npx jest --runInBand
+
+      # CR-04.4: build não depende de fonte externa (Google Fonts) — corre
+      # normalmente mesmo num runner sem acesso a fonts.googleapis.com.
+      - name: Build
+        working-directory: apps/frontend
+        run: npm run build
+
+      # Política de audit (CR-05.1/CR-06.4) — ver security-audit-exceptions.json.
+      - name: Audit de produção (exceções documentadas com prazo)
+        run: node scripts/check-audit.js apps/frontend
+
+      - name: Gate de cobertura do diff (meta 90%)
+        working-directory: apps/frontend
+        run: npm run test:diff-cov
