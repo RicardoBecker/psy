@@ -95,7 +95,25 @@ export class PsychologistService {
     });
   }
 
+  // 🔒 Exige perfil profissional existente E verificado. Mensagem uniforme
+  // para os dois casos (sem perfil / perfil não verificado) — não revela
+  // qual dos dois é a situação real do chamador.
+  private async requireVerifiedPsychologist(psychologistId: string): Promise<void> {
+    const profile = await this.prisma.psychologistProfile.findUnique({
+      where: { userId: psychologistId },
+      select: { verified: true },
+    });
+
+    if (!profile || !profile.verified) {
+      throw new ForbiddenException(
+        'Você precisa de um perfil profissional verificado para usar este recurso.',
+      );
+    }
+  }
+
   async searchPatients(psychologistId: string, email: string) {
+    await this.requireVerifiedPsychologist(psychologistId);
+
     const patients = await this.prisma.user.findMany({
       where: {
         role: Role.PATIENT,
@@ -134,10 +152,12 @@ export class PsychologistService {
       throw new ForbiddenException('Usuário deve ter role PSYCHOLOGIST');
     }
 
-    // Verificar se o paciente existe e tem role PATIENT
+    await this.requireVerifiedPsychologist(psychologistId);
+
+    // Verificar se o paciente existe, tem role PATIENT e está ativo
     const patient = await this.prisma.user.findUnique({
       where: { id: createDto.patientId },
-      select: { id: true, role: true },
+      select: { id: true, role: true, isActive: true },
     });
 
     if (!patient) {
@@ -146,6 +166,10 @@ export class PsychologistService {
 
     if (patient.role !== Role.PATIENT) {
       throw new BadRequestException('Usuário deve ter role PATIENT');
+    }
+
+    if (!patient.isActive) {
+      throw new NotFoundException('Paciente não encontrado');
     }
 
     // Verificar se já existe link
