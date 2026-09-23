@@ -319,7 +319,15 @@ Restaurar build, type-check, lint e comportamento correto da autenticação no n
 
 ### CR-04.3 — Corrigir ordem dos hooks no histórico de check-ins
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** o `return null` condicional em `checkins/page.tsx` acontecia antes da declaração do `useEffect` de busca de dados — usuário anônimo executava menos hooks que usuário autenticado, violando `rules-of-hooks`. O redirect foi movido para dentro de um `useEffect` (mesmo padrão já usado nas demais páginas do app), declarado antes de qualquer `return`; os `return` condicionais (loading de auth → `null` se anônimo → loading de dados → conteúdo) agora só acontecem depois de todos os hooks declarados.
+  Novo `checkins/page.test.tsx` (2 casos, usando `rerender` do Testing Library para simular a transição real): loading→autenticado não lança erro e carrega os check-ins; loading→anônimo não lança erro, redireciona e **não** chama a API de check-ins. Validado que o teste pega o bug de verdade: restaurei temporariamente o código antigo e o teste falhou com o erro exato do React (`Rendered fewer hooks than expected. This may be caused by an accidental early return statement.`); revertido antes do commit final. `npm run lint` limpo (`react-hooks/rules-of-hooks` era o único erro de lint do projeto).
+
+### CR-04.4 — Tornar o build independente do download de fonte
+
+- **Status:** DONE
+- **Evidência:** `app/layout.tsx` usava `next/font/google` (Inter), que baixa o arquivo da fonte de `fonts.googleapis.com` durante o build — falha em ambiente sem rede. Substituído pela stack de fontes do sistema já padrão do Tailwind (`font-sans`: `ui-sans-serif, system-ui, -apple-system, ...`), aplicada via `className="font-sans"` no `<body>`. Nenhum arquivo de fonte foi adicionado ao repositório — sem questão de licença a gerenciar. Visualmente muito próximo de Inter (mesma família de fontes UI modernas).
+  `npm run build` completo passa sem nenhuma referência a `next/font` ou a domínio externo de fonte no código.
 - **Prioridade:** P2
 - **Origem:** retorno condicional ocorre antes de `useEffect`.
 - **User story:** Como usuário não autenticado, quero ser redirecionado sem erro de renderização do React.
@@ -578,7 +586,7 @@ Uma história só pode ser marcada `DONE` quando:
 
 - [x] Todas as histórias P1 estão `DONE`. (CR-01.1 a CR-04.2 concluídas em 2026-09-22)
 - [x] Backend build e testes passam. (`npm run build` e `npx jest --runInBand` — 36/36 verdes)
-- [ ] Frontend type-check, lint, testes e build passam. (type-check e testes ok; lint/build ainda falham em `checkins/page.tsx`, aguardando `CR-04.3`, P2)
+- [x] Frontend type-check, lint, testes e build passam. (`CR-04.3` e `CR-04.4` — `npm run build` completo, do zero, sem rede externa)
 - [x] Migration foi testada com banco PostgreSQL populado. (`CR-03.1`, rehearsal contra Postgres 16 real)
 - [x] Nenhum login social simulado permanece público. (`CR-01.1`)
 - [x] Usuário inativo e role revogada perdem acesso imediatamente. (`CR-02.1` + `CR-02.2`)
