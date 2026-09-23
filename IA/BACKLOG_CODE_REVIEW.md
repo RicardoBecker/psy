@@ -137,7 +137,9 @@ Eliminar emissão de tokens para identidades não verificadas e impedir que usu�
 
 ### CR-01.4 — Restringir descoberta e convites a psicólogos verificados
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `PsychologistService.requireVerifiedPsychologist` (novo método privado) exige `psychologistProfile.verified === true`; chamado no início de `searchPatients` e `createPatientLink`, antes de qualquer consulta a dados de pacientes. Mensagem de erro idêntica para "sem perfil" e "perfil não verificado" (`ForbiddenException`, 403) — não revela qual dos dois é o caso real. `createPatientLink` passou a checar `patient.isActive`, usando a mesma mensagem `NotFoundException` do caso "paciente não existe" — um paciente inativo não recebe novo convite e não é diferenciável de um paciente inexistente. Busca já filtrava `isActive: true` desde a implementação original do EPIC-05.
+  Novo `psychologist.service.spec.ts` (7 casos): sem perfil → 403, sem chamar `user.findMany`; perfil não verificado → 403; mensagens de "sem perfil" e "não verificado" idênticas (prova de não-enumeração); perfil verificado → busca prossegue normalmente; convite sem perfil verificado → 403, sem chamar `create`; convite para paciente inativo → 404 com a mesma mensagem de "não encontrado"; convite com psicólogo verificado e paciente ativo → cria o vínculo normalmente. 43/43 testes verdes na suíte completa. `npx tsc --noEmit` e `npm run build` limpos. `npm run test:diff-cov`: 100% de cobertura no diff.
 - **Prioridade:** P2
 - **Origem:** qualquer conta com role `PSYCHOLOGIST` pode enumerar pacientes por email e enviar convites.
 - **User story:** Como paciente, quero ser encontrado e convidado somente por profissionais verificados, reduzindo exposição de dados pessoais e abuso.
@@ -244,7 +246,9 @@ Garantir evolução segura do schema sem perda do histórico emocional.
 
 ### CR-03.2 — Criar teste permanente de migrations com banco populado
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** Helpers de banco descartável extraídos para `src/test-utils/disposable-postgres.ts` (reaproveitado por `CR-03.1`). Novo `src/prisma/all-migrations-populated.e2e.spec.ts`: **genérico** — lê `prisma/migrations/` dinamicamente (não fixa nomes de migration), aplica todas menos a mais recente, popula fixture sintética cobrindo usuário, psicólogo com perfil verificado, tutor/menor, check-in, diário, vínculo psicólogo-paciente e registro de consentimento, aplica a migration mais recente por cima, e verifica: contagem de linhas idêntica em todas as 7 tabelas antes/depois; nenhuma tabela ficou vazia; relacionamentos (joins) entre todas as entidades continuam resolvendo; valores de check-in mapeados corretamente; nenhum campo obrigatório ficou nulo. Também roda todas as migrations do zero em banco vazio.
+  Validado que o teste realmente pega regressão: restaurei temporariamente a versão destrutiva original da migration de check-ins (a que motivou `CR-03.1`) e confirmei que o teste falha na hora (`ERROR: column "moodScore" ... contains null values`); revertido antes do commit final. 46/46 testes verdes na suíte completa (3 novos). `npx tsc --noEmit` e `npm run build` limpos.
 - **Prioridade:** P2
 - **Origem:** não existe rehearsal automatizado de schema evolution.
 - **User story:** Como equipe, quero validar migrations contra dados representativos para impedir regressões destrutivas.
@@ -315,7 +319,15 @@ Restaurar build, type-check, lint e comportamento correto da autenticação no n
 
 ### CR-04.3 — Corrigir ordem dos hooks no histórico de check-ins
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** o `return null` condicional em `checkins/page.tsx` acontecia antes da declaração do `useEffect` de busca de dados — usuário anônimo executava menos hooks que usuário autenticado, violando `rules-of-hooks`. O redirect foi movido para dentro de um `useEffect` (mesmo padrão já usado nas demais páginas do app), declarado antes de qualquer `return`; os `return` condicionais (loading de auth → `null` se anônimo → loading de dados → conteúdo) agora só acontecem depois de todos os hooks declarados.
+  Novo `checkins/page.test.tsx` (2 casos, usando `rerender` do Testing Library para simular a transição real): loading→autenticado não lança erro e carrega os check-ins; loading→anônimo não lança erro, redireciona e **não** chama a API de check-ins. Validado que o teste pega o bug de verdade: restaurei temporariamente o código antigo e o teste falhou com o erro exato do React (`Rendered fewer hooks than expected. This may be caused by an accidental early return statement.`); revertido antes do commit final. `npm run lint` limpo (`react-hooks/rules-of-hooks` era o único erro de lint do projeto).
+
+### CR-04.4 — Tornar o build independente do download de fonte
+
+- **Status:** DONE
+- **Evidência:** `app/layout.tsx` usava `next/font/google` (Inter), que baixa o arquivo da fonte de `fonts.googleapis.com` durante o build — falha em ambiente sem rede. Substituído pela stack de fontes do sistema já padrão do Tailwind (`font-sans`: `ui-sans-serif, system-ui, -apple-system, ...`), aplicada via `className="font-sans"` no `<body>`. Nenhum arquivo de fonte foi adicionado ao repositório — sem questão de licença a gerenciar. Visualmente muito próximo de Inter (mesma família de fontes UI modernas).
+  `npm run build` completo passa sem nenhuma referência a `next/font` ou a domínio externo de fonte no código.
 - **Prioridade:** P2
 - **Origem:** retorno condicional ocorre antes de `useEffect`.
 - **User story:** Como usuário não autenticado, quero ser redirecionado sem erro de renderização do React.
@@ -355,7 +367,18 @@ Reduzir exposição conhecida da cadeia de dependências e endurecer as fronteir
 
 ### CR-05.1 — Atualizar dependências vulneráveis do frontend
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `next` e `eslint-config-next` atualizados de `14.0.0` para `14.2.35` (último patch da linha 14.x — sem major); `postcss` de `^8.4.31` para `^8.5.23`; `npm audit fix` (sem `--force`) resolveu `postcss-selector-parser`. `axios` já estava em versão não vulnerável (`^1.14.0`, sem achado no audit). `npm audit --omit=dev`: de 9 vulnerabilidades (1 crítica, 5 altas) para 2 (1 crítica, 1 alta) — ambas residuais só corrigíveis com Next 16, ver exceção documentada abaixo.
+  **Regressão encontrada e corrigida durante a atualização:** Next 14.2.x passou a exigir `<Suspense>` ao redor de `useSearchParams()` para permitir pré-renderização estática, quebrando o build de `/dashboard` (`useSearchParams() should be wrapped in a suspense boundary`). Isolado em componente próprio (`AccessDeniedToast`, sem saída visual) envolto em `<Suspense fallback={null}>` — mesmo comportamento, build volta a passar.
+  `npm ci` testado em diretório isolado (`/tmp`): reproduz a instalação a partir do lockfile atualizado sem erro. `npx jest`, `npx tsc --noEmit`, `npm run lint` e `npm run build` (completo, 15/15 páginas) — todos limpos.
+
+  **Exceção formal — vulnerabilidades residuais do Next.js (não corrigíveis dentro da linha 14.x):**
+  - **Vulnerabilidades:** `next` critical (agrega várias advisories, incluindo AVIF Image Optimization RCE, Windows RCE, DoS/SSRF em Server Actions, cache poisoning em Middleware/RSC) e `postcss` high (vendorizado dentro do próprio `next`, não é o `postcss` de topo já atualizado).
+  - **Análise de alcance:** o app não usa `next/image` (sem `remotePatterns`), não usa Server Actions (`'use server'`), não usa i18n de rota nem `rewrites` no `next.config.js` (config vazio) — a maior parte da superfície dessas advisories não é alcançável pelo código atual. O middleware é usado ativamente (proteção de rotas por role), mas já está documentado como camada de UX, não de autorização (`IA/BACKLOG_CODE_REVIEW.md`, achados do review original) — o backend permanece a fronteira de autorização real (confirmado pelas correções de `CR-02.2`).
+  - **Mitigação:** nenhuma ação adicional de código necessária hoje, dado o alcance acima. Autorização real continua exclusivamente no backend.
+  - **Correção completa:** requer upgrade major para Next 15/16 — mudança de React, possíveis breaking changes no App Router, exige sua própria rodada de testes de regressão. Fora do escopo de uma atualização de dependências (regra do backlog: não fazer upgrade major automático sem avaliar compatibilidade).
+  - **Responsável:** Ricardo (dono do projeto).
+  - **Prazo:** antes do primeiro deploy em produção pública, ou em até 90 dias corridos a partir de 2026-09-23 — o que ocorrer primeiro.
 - **Prioridade:** P2
 - **Origem:** audit encontrou vulnerabilidades críticas/altas em Next.js, Axios e cadeia PostCSS.
 - **User story:** Como operador, quero executar o frontend em versões corrigidas e suportadas.
@@ -375,7 +398,17 @@ Reduzir exposição conhecida da cadeia de dependências e endurecer as fronteir
 
 ### CR-05.2 — Atualizar dependências vulneráveis do backend
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `npm audit fix` (sem `--force`) resolveu `fflate`/`file-type` diretos e `brace-expansion`. `tar` (crítico, via `bcrypt → @mapbox/node-pre-gyp`) e `qs` (moderado, via `@nestjs/platform-express`/`express`) ficavam presos em versões antigas porque seus pais diretos declaram ranges major que o resolver padrão do npm não ultrapassa — corrigido com `overrides` no `package.json` (`tar: ^7.5.22`, `qs: ^6.16.0`), forçando as versões patcheadas sem tocar nos pacotes de topo. `npm audit --omit=dev`: de 13 vulnerabilidades (1 crítica, 5 altas) para 8 (0 crítica, 3 altas) — nenhuma crítica restante.
+  Validado que o override não quebra nada: suíte completa (46/46), `tsc --noEmit`, `npm run build` limpos; `npm ci` testado em diretório isolado reproduz exatamente `tar@7.5.22`/`qs@6.16.0`; `bcrypt.hash()` real testado nessa instalação isolada, confirmando que o binário nativo (que depende de `node-pre-gyp`/`tar` no install) continua funcionando com o `tar` forçado.
+
+  **Exceção formal — vulnerabilidades residuais que exigem NestJS 10→12 (dois majors):**
+  - **Vulnerabilidades:** `lodash` high (via `@nestjs/config`), `multer` high (via `@nestjs/platform-express`), `file-type` moderate (via `@nestjs/common`), `body-parser` low (via `@nestjs/platform-express`/`express`; a correção é `body-parser@2.x`, feito para Express 5, potencialmente incompatível com o Express 4 que este projeto usa).
+  - **Análise de alcance:** `multer` **não é usado em nenhuma rota** deste projeto (`grep` por `multer|FileInterceptor|@UploadedFile` em `src/` não encontra nada) — é puro peso morto trazido pelo `@nestjs/platform-express`, sem superfície de ataque real hoje. `lodash`/`file-type` são usados internamente pelo NestJS/seus pacotes auxiliares (leitura de config, utilitários), não por código deste projeto processando entrada de usuário diretamente — as funções vulneráveis (`_.template`, `_.unset`, `_.omit` com paths controlados por atacante; parsing de arquivo malformado) não têm caminho de entrada óbvio a partir de uma requisição HTTP nesta aplicação.
+  - **Mitigação:** nenhuma ação de código necessária hoje, dado o alcance acima. Se upload de arquivo for implementado no futuro, reavaliar `multer` antes de habilitá-lo.
+  - **Correção completa:** requer subir `@nestjs/common`, `@nestjs/core`, `@nestjs/config` e `@nestjs/platform-express` de uma vez para a linha 12.x (dois majors à frente da 10.x atual) — mudança de peso comparável à atualização do Next.js em `CR-05.1`, precisa de sua própria rodada de testes de regressão (guards, strategies, DI, upload se vier a existir). Fora do escopo de uma atualização de dependências.
+  - **Responsável:** Ricardo (dono do projeto).
+  - **Prazo:** mesmo prazo de `CR-05.1` — antes do primeiro deploy em produção pública, ou em até 90 dias corridos a partir de 2026-09-23, o que ocorrer primeiro.
 - **Prioridade:** P2
 - **Origem:** audit encontrou vulnerabilidades críticas/altas em dependências transitivas e no stack Nest/Express.
 - **User story:** Como operador, quero executar a API em dependências corrigidas sem quebrar contratos.
@@ -395,7 +428,9 @@ Reduzir exposição conhecida da cadeia de dependências e endurecer as fronteir
 
 ### CR-05.3 — Restringir CORS por ambiente
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** `app.enableCors()` (sem opções, aceitava qualquer origem) substituído por `app.enableCors(buildCorsOptions())` (novo `src/common/cors.config.ts`). Produção (`NODE_ENV=production`) exige `CORS_ALLOWED_ORIGINS` (lista exata, sem wildcard) — **lança erro na inicialização** se ausente, em vez de subir aceitando ou negando tudo silenciosamente. Fora de produção, além do allowlist, localhost e IPs de rede local (`10.x`, `172.16-31.x`, `192.168.x`, qualquer porta) são aceitos automaticamente — necessário para não quebrar o acesso via IP na rede local já implementado (`devOps/docker-compose.yml` roda com `NODE_ENV=development`, então continua funcionando sem configuração extra). `methods`/`allowedHeaders` explícitos; `credentials: false` (auth via header `Authorization`, não cookie, neste momento — revisar quando `CR-05.4` migrar a sessão para cookie).
+  Testes novos: `cors.config.spec.ts` (11 casos unitários sobre a função de decisão: localhost e IP de rede local permitidos em dev, origem pública rejeitada, sem `Origin` sempre permitido, produção lança sem `CORS_ALLOWED_ORIGINS`, produção permite exatamente as origens listadas, produção rejeita não listada, produção **não** libera IP de rede local automaticamente, `origin` nunca é `"*"`) e `cors.e2e.spec.ts` (5 casos, servidor HTTP real via supertest: preflight `OPTIONS` de origem autorizada recebe os headers CORS esperados; preflight de origem não autorizada não recebe header de permissão; `GET` real de origem autorizada recebe `Access-Control-Allow-Origin` **igual à origem**, nunca `"*"`; `GET` de origem não autorizada não recebe o header; dev libera IP de rede local no `GET` real). 62/62 testes verdes na suíte completa. `main.ts` (bootstrap, não testável unitariamente) excluído de `collectCoverageFrom` — prática padrão para entrypoints.
 - **Prioridade:** P2
 - **Origem:** backend usa `app.enableCors()` sem allowlist.
 - **User story:** Como responsável pela segurança, quero aceitar origens web explicitamente autorizadas.
@@ -414,7 +449,17 @@ Reduzir exposição conhecida da cadeia de dependências e endurecer as fronteir
 
 ### CR-05.4 — Migrar token para cookie seguro controlado pelo servidor
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:**
+  - **Contrato de sessão** (`src/common/session-cookie.ts`, novo): `emotional_app_token` (HttpOnly, `SameSite=Lax`, `Secure` em produção, `path=/`, 7 dias) carrega o JWT — nunca mais no corpo da resposta. `csrf_token` (não-HttpOnly, mesmos demais atributos) é o par do double-submit cookie.
+  - **Backend**: `login`/`register` usam `@Res({passthrough:true})` para setar os dois cookies via `setSessionCookies`; a resposta passa a ser `{ user, csrfToken }`, sem `access_token`. Novo `POST /auth/logout` (autenticado) limpa os dois cookies via `clearSessionCookies`. `JwtStrategy` extrai o JWT exclusivamente de `req.cookies.emotional_app_token` (não mais do header `Authorization`).
+  - **CSRF** (`src/common/csrf.guard.ts` + `csrf.middleware.ts` + `skip-csrf.decorator.ts`): double-submit cookie aplicado globalmente (`APP_GUARD`) a toda requisição `POST/PUT/PATCH/DELETE` — header `X-CSRF-Token` precisa bater exatamente com o cookie `csrf_token`. Middleware global garante que todo cliente tenha um `csrf_token` desde a primeira requisição (mesmo antes de logar). `register`/`login` isentos (`@SkipCsrf()`) — ainda não existe sessão para um atacante abusar nesse ponto.
+  - **CORS** (`CR-05.3`): `credentials: true` (necessário para o cookie trafegar cross-origin frontend↔backend), origem sempre exata (nunca wildcard, já garantido).
+  - **Frontend**: `lib/api.ts` — axios com `withCredentials: true`; interceptor novo ecoa `csrf_token` (lido de `document.cookie`, que só expõe esse cookie, nunca o de sessão) como header `X-CSRF-Token` em toda requisição; interceptor de `Authorization: Bearer` removido (não há mais token acessível ao JS para anexar). `lib/auth.ts` — `tokenStorage` removido inteiramente; `authHelpers.logout()` agora é assíncrono, chama `POST /auth/logout` (só o servidor consegue limpar um cookie HttpOnly) e limpa o cache local mesmo se a chamada falhar (nunca trava "logado"). `AuthProvider` — `initAuth` não tem mais uma checagem local prévia (não há mais token para checar): sempre chama `getProfile()`, usando o usuário em cache apenas para render otimista; `logout` do contexto virou `async` (call site em `dashboard/page.tsx` atualizado).
+  - **Middleware do Next.js**: **nenhuma alteração necessária** — HttpOnly bloqueia leitura via `document.cookie` no navegador, mas o middleware roda no servidor e lê o cookie normalmente a partir do request; mesmo nome de cookie (`emotional_app_token`) preservado de propósito para isso.
+- **Validação end-to-end contra backend real** (Docker, não só mocks): registro → `Set-Cookie` com `HttpOnly` confirmado no cookie de sessão e ausente no `csrf_token`; corpo da resposta sem `access_token`; `GET /users/profile` com o cookie funciona; `POST` mutável sem `X-CSRF-Token` → 403; com header igual ao cookie → sucesso; `POST /auth/logout` → `Set-Cookie` com `Expires` no passado nos dois cookies, e o mesmo cookie salvo deixa de funcionar (401) logo em seguida; JWT assinado com segredo diferente do servidor → 401; CORS preflight cross-origin (porta 3000→3001) com `credentials: true` reflete a origem exata; middleware do Next.js continua redirecionando corretamente (`/dashboard` sem cookie → 307; paciente em `/dashboard/admin/users` → 307).
+- **Testes automatizados novos**: `csrf.config.spec` combinado em `csrf.guard`/`csrf.middleware` cobertos por `csrf.e2e.spec.ts` (8 casos: GET nunca exige CSRF e já recebe o cookie; POST sem header → 403; POST com header mas sem cookie → 403; header ≠ cookie → 403; header = cookie → sucesso; `@SkipCsrf()` ignora a checagem; middleware seta o cookie só se ainda não existir); `logout.controller.spec.ts` (4 casos: sem sessão → 401; com sessão → limpa os dois cookies; token assinado com segredo errado → 401; valor sem formato de JWT → 401); `login.controller.spec.ts` atualizado (cookie HttpOnly presente, `csrf_token` legível, corpo sem `access_token`); `session-freshness.e2e.spec.ts` (`CR-02.2`) migrado de header `Authorization` para cookie, mesmo comportamento preservado; `auth-provider.test.tsx` (`CR-04.2`) reescrito para o novo modelo — inclui o cenário novo "sem cache local mas cookie válido no servidor autentica mesmo assim" e dois casos novos para `logout()` (chama o servidor; limpa o estado local mesmo se a chamada falhar).
+  74/74 testes no backend, 9/9 no frontend. `npx tsc --noEmit`, `npm run lint` e `npm run build` limpos nos dois apps. `npm run test:diff-cov`: backend 90.4%, frontend 91.7% (ambos acima da meta de 90%).
 - **Prioridade:** P2
 - **Origem:** JWT é duplicado em localStorage e cookie legível por JavaScript; middleware apenas decodifica assinatura.
 - **User story:** Como usuário, quero que minha sessão seja menos exposta a roubo por scripts no navegador.
@@ -574,14 +619,14 @@ Uma história só pode ser marcada `DONE` quando:
 
 - [x] Todas as histórias P1 estão `DONE`. (CR-01.1 a CR-04.2 concluídas em 2026-09-22)
 - [x] Backend build e testes passam. (`npm run build` e `npx jest --runInBand` — 36/36 verdes)
-- [ ] Frontend type-check, lint, testes e build passam. (type-check e testes ok; lint/build ainda falham em `checkins/page.tsx`, aguardando `CR-04.3`, P2)
+- [x] Frontend type-check, lint, testes e build passam. (`CR-04.3` e `CR-04.4` — `npm run build` completo, do zero, sem rede externa)
 - [x] Migration foi testada com banco PostgreSQL populado. (`CR-03.1`, rehearsal contra Postgres 16 real)
 - [x] Nenhum login social simulado permanece público. (`CR-01.1`)
 - [x] Usuário inativo e role revogada perdem acesso imediatamente. (`CR-02.1` + `CR-02.2`)
 - [x] Cadastro público não controla role. (`CR-01.2`)
 - [x] Psicólogo não controla `verified`. (`CR-01.3`)
-- [ ] Audit não possui critical/high sem exceção formal.
-- [ ] CORS está restrito em produção.
-- [ ] Token não está disponível em localStorage ou cookie legível por JavaScript.
+- [x] Audit não possui critical/high sem exceção formal. (`CR-05.1`/`CR-05.2` — residuais documentados com alcance, mitigação, responsável e prazo)
+- [x] CORS está restrito em produção. (`CR-05.3`)
+- [x] Token não está disponível em localStorage ou cookie legível por JavaScript. (`CR-05.4`)
 - [ ] CI bloqueia regressões.
 - [ ] Novo code review confirma o encerramento dos achados.

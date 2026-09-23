@@ -1,32 +1,14 @@
 // 🔐 Utilities para gerenciamento de autenticação
-import { User } from './api';
+import { User, authApi } from './api';
 
-// 🔑 Token management
-export const tokenStorage = {
-  get: (): string | null => {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('emotional_app_token');
-  },
+// 🔒 CR-05.4: não existe mais tokenStorage — a sessão vive num cookie
+// HttpOnly setado pelo backend, ilegível por JavaScript de propósito. O
+// navegador o envia automaticamente em toda requisição (withCredentials);
+// o frontend não precisa (e não consegue) ler, guardar ou apagar esse
+// valor sozinho.
 
-  set: (token: string): void => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('emotional_app_token', token);
-    
-    // 🍪 Salvar cookie para middleware (configuração simplificada para localhost)
-    const maxAge = 7 * 24 * 60 * 60; // 7 dias em segundos
-    document.cookie = `emotional_app_token=${token}; path=/; max-age=${maxAge}`;
-  },
-
-  remove: (): void => {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem('emotional_app_token');
-    
-    // 🗑️ Remover cookie também
-    document.cookie = 'emotional_app_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-  },
-};
-
-// 👤 User management
+// 👤 Cache local do usuário — só para exibição otimista na UI, nunca a
+// fonte de verdade de autenticação (isso é sempre o backend).
 export const userStorage = {
   get: (): User | null => {
     if (typeof window === 'undefined') return null;
@@ -47,24 +29,22 @@ export const userStorage = {
 
 // 🔒 Auth helpers
 export const authHelpers = {
-  // 📱 Salvar dados de autenticação
-  saveAuthData: (token: string, user: User): void => {
-    tokenStorage.set(token);
-    userStorage.set(user);
+  // 🚪 Logout completo: pede ao backend para limpar o cookie HttpOnly
+  // (JavaScript não consegue fazer isso sozinho) e limpa o cache local.
+  // Mesmo se a chamada ao servidor falhar (ex.: rede), o cache local ainda
+  // é limpo — o pior caso é o cookie sobreviver no navegador até expirar,
+  // não uma sessão "presa" na UI.
+  logout: async (): Promise<void> => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error('Erro ao encerrar sessão no servidor:', error);
+    } finally {
+      userStorage.remove();
+    }
   },
 
-  // 🚪 Logout completo
-  logout: (): void => {
-    tokenStorage.remove();
-    userStorage.remove();
-  },
-
-  // ✅ Verificar se está autenticado
-  isAuthenticated: (): boolean => {
-    return !!tokenStorage.get();
-  },
-
-  // 👤 Obter usuário atual
+  // 👤 Obter usuário atual (cache local, para render otimista)
   getCurrentUser: (): User | null => {
     return userStorage.get();
   },

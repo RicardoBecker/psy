@@ -12,12 +12,9 @@
  *   - os valores são copiados conforme o mapeamento aprovado
  *     (mood→moodScore, energy→energyLevel, stress→anxietyLevel).
  */
-import { execSync } from 'child_process';
 import { Client } from 'pg';
 import * as path from 'path';
-
-const ADMIN_URL =
-  process.env.TEST_DATABASE_ADMIN_URL ?? 'postgresql://postgres:postgres@localhost:5432/postgres';
+import { dbUrl, runSqlFile, createDatabase, dropDatabase } from '../test-utils/disposable-postgres';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../prisma/migrations');
 const INIT_SQL = path.join(MIGRATIONS_DIR, '20260402131453_init', 'migration.sql');
@@ -27,31 +24,6 @@ const TARGET_SQL = path.join(
   '20260407142459_update_emotional_checkin_fields',
   'migration.sql',
 );
-
-function dbUrl(dbName: string): string {
-  const admin = new URL(ADMIN_URL);
-  admin.pathname = `/${dbName}`;
-  return admin.toString();
-}
-
-function runSqlFile(dbName: string, sqlFile: string) {
-  execSync(`psql "${dbUrl(dbName)}" -v ON_ERROR_STOP=1 -q -f "${sqlFile}"`, { stdio: 'pipe' });
-}
-
-async function createDatabase(dbName: string) {
-  const admin = new Client({ connectionString: ADMIN_URL });
-  await admin.connect();
-  await admin.query(`DROP DATABASE IF EXISTS "${dbName}"`);
-  await admin.query(`CREATE DATABASE "${dbName}"`);
-  await admin.end();
-}
-
-async function dropDatabase(dbName: string) {
-  const admin = new Client({ connectionString: ADMIN_URL });
-  await admin.connect();
-  await admin.query(`DROP DATABASE IF EXISTS "${dbName}"`);
-  await admin.end();
-}
 
 const suffix = Date.now();
 const POPULATED_DB = `cr031_populated_${suffix}`;

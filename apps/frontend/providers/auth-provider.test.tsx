@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { AuthProvider, useAuth } from './auth-provider';
 import { authApi } from '../lib/api';
 
@@ -10,11 +10,13 @@ jest.mock('../lib/api', () => {
     authApi: {
       ...actual.authApi,
       getProfile: jest.fn(),
+      logout: jest.fn(),
     },
   };
 });
 
 const mockedGetProfile = authApi.getProfile as jest.Mock;
+const mockedLogout = authApi.logout as jest.Mock;
 
 const CACHED_USER = {
   id: 'user-1',
@@ -28,8 +30,11 @@ const CACHED_USER = {
 
 const FRESH_USER = { ...CACHED_USER, name: 'Usuário Atualizado' };
 
-function seedSession(user = CACHED_USER) {
-  localStorage.setItem('emotional_app_token', 'token-123');
+// CR-05.4: não existe mais token em localStorage — só o cache do usuário,
+// que é dado de exibição, nunca a fonte de verdade de autenticação (essa é
+// sempre o cookie HttpOnly, invisível ao JS e por isso não simulável aqui;
+// quem decide autenticado/anônimo é sempre a resposta mockada de getProfile).
+function seedCachedUser(user = CACHED_USER) {
   localStorage.setItem('emotional_app_user', JSON.stringify(user));
 }
 
@@ -53,24 +58,39 @@ function renderAuthProvider() {
   );
 }
 
-describe('AuthProvider — restauração de sessão (CR-04.2)', () => {
+describe('AuthProvider — sessão via cookie HttpOnly (CR-04.2 / CR-05.4)', () => {
   beforeEach(() => {
     localStorage.clear();
-    document.cookie = 'emotional_app_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     mockedGetProfile.mockReset();
+    mockedLogout.mockReset().mockResolvedValue(undefined);
   });
 
-  it('sem sessão salva: resolve como não autenticado, sem chamar a API', async () => {
+  it('sem cache local, sem cookie válido: getProfile é chamado mesmo assim e falha com 401 → não autenticado', async () => {
+    mockedGetProfile.mockRejectedValue({ response: { status: 401 } });
+
     renderAuthProvider();
 
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
 
+    // CR-05.4: não há mais token local para "checar antes" — o único jeito
+    // de saber se existe sessão é perguntar ao backend, sempre.
+    expect(mockedGetProfile).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('authenticated').textContent).toBe('false');
-    expect(mockedGetProfile).not.toHaveBeenCalled();
   });
 
-  it('sessão salva + perfil carregado com sucesso: fica autenticado com os dados atualizados', async () => {
-    seedSession();
+  it('sem cache local, MAS com cookie válido no servidor: getProfile sucede e autentica (cenário novo do CR-05.4)', async () => {
+    mockedGetProfile.mockResolvedValue(FRESH_USER);
+
+    renderAuthProvider();
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+
+    expect(screen.getByTestId('authenticated').textContent).toBe('true');
+    expect(screen.getByTestId('user-name').textContent).toBe('Usuário Atualizado');
+  });
+
+  it('cache local presente + perfil carregado com sucesso: fica autenticado com os dados atualizados', async () => {
+    seedCachedUser();
     mockedGetProfile.mockResolvedValue(FRESH_USER);
 
     renderAuthProvider();
@@ -84,8 +104,8 @@ describe('AuthProvider — restauração de sessão (CR-04.2)', () => {
     );
   });
 
-  it('sessão salva + 401 do backend: encerra a sessão (logout real)', async () => {
-    seedSession();
+  it('cache local presente + 401 do backend: limpa o cache local (cookie já é inválido no servidor)', async () => {
+    seedCachedUser();
     mockedGetProfile.mockRejectedValue({ response: { status: 401 } });
 
     renderAuthProvider();
@@ -93,12 +113,11 @@ describe('AuthProvider — restauração de sessão (CR-04.2)', () => {
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
 
     expect(screen.getByTestId('authenticated').textContent).toBe('false');
-    expect(localStorage.getItem('emotional_app_token')).toBeNull();
     expect(localStorage.getItem('emotional_app_user')).toBeNull();
   });
 
-  it('sessão salva + falha de rede (sem response): mantém a sessão em cache, não desloga', async () => {
-    seedSession();
+  it('cache local presente + falha de rede (sem response): mantém a sessão em cache, não desloga', async () => {
+    seedCachedUser();
     mockedGetProfile.mockRejectedValue(new Error('Network Error')); // sem .response
 
     renderAuthProvider();
@@ -107,6 +126,63 @@ describe('AuthProvider — restauração de sessão (CR-04.2)', () => {
 
     expect(screen.getByTestId('authenticated').textContent).toBe('true');
     expect(screen.getByTestId('user-name').textContent).toBe('Usuário Cache');
-    expect(localStorage.getItem('emotional_app_token')).toBe('token-123');
+    expect(localStorage.getItem('emotional_app_user')).not.toBeNull();
+  });
+});
+
+describe('AuthProvider.logout — encerra a sessão no servidor (CR-05.4)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockedGetProfile.mockReset().mockResolvedValue(CACHED_USER);
+    mockedLogout.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('chama authApi.logout() (limpa o cookie HttpOnly no servidor) e limpa o cache local', async () => {
+    seedCachedUser();
+
+    let contextValue: ReturnType<typeof useAuth> | null = null;
+    function Capture() {
+      contextValue = useAuth();
+      return <Probe />;
+    }
+    render(
+      <AuthProvider>
+        <Capture />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+    expect(screen.getByTestId('authenticated').textContent).toBe('true');
+
+    await act(async () => {
+      await contextValue!.logout();
+    });
+
+    expect(mockedLogout).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('emotional_app_user')).toBeNull();
+  });
+
+  it('mesmo se authApi.logout() falhar (rede), ainda limpa o estado local — nunca trava "logado"', async () => {
+    seedCachedUser();
+    mockedLogout.mockRejectedValue(new Error('Network Error'));
+
+    let contextValue: ReturnType<typeof useAuth> | null = null;
+    function Capture() {
+      contextValue = useAuth();
+      return <Probe />;
+    }
+    render(
+      <AuthProvider>
+        <Capture />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+
+    await act(async () => {
+      await contextValue!.logout();
+    });
+
+    expect(localStorage.getItem('emotional_app_user')).toBeNull();
   });
 });

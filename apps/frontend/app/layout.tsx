@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '../providers/auth-provider'
 import { Toaster } from 'react-hot-toast'
 
-const inter = Inter({ subsets: ['latin'] })
+// 🔤 Fonte do sistema (stack padrão do Tailwind), em vez de next/font/google:
+// evita depender de fonts.googleapis.com durante o build (CR-04.4). Visual
+// muito próximo de Inter — mesma família de fontes UI modernas.
 
 export const metadata: Metadata = {
   title: 'Emotional App - Acompanhamento Emocional',
@@ -18,7 +19,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={inter.className}>
+      <body className="font-sans">
         <AuthProvider>
           {children}
           <Toaster 

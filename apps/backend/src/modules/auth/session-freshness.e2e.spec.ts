@@ -3,10 +3,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
+import * as cookieParser from 'cookie-parser';
 import * as request from 'supertest';
 import { UsersController } from '../users/users.controller';
 import { UsersService } from '../users/users.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { SESSION_COOKIE_NAME } from '../../common/session-cookie';
 
 /**
  * Prova, ponta a ponta e usando o MESMO token JWT emitido uma única vez, que
@@ -36,6 +38,7 @@ describe('Session freshness — same old token, DB state decides access (CR-02.2
     }).compile();
 
     app = moduleRef.createNestApplication();
+    app.use(cookieParser());
     await app.init();
 
     jwtService = moduleRef.get(JwtService);
@@ -64,7 +67,7 @@ describe('Session freshness — same old token, DB state decides access (CR-02.2
 
     const res = await request(app.getHttpServer())
       .get('/users')
-      .set('Authorization', `Bearer ${tokenForUser1}`);
+      .set('Cookie', `${SESSION_COOKIE_NAME}=${tokenForUser1}`);
 
     expect(res.status).toBe(200);
   });
@@ -80,7 +83,7 @@ describe('Session freshness — same old token, DB state decides access (CR-02.2
 
     const res = await request(app.getHttpServer())
       .get('/users')
-      .set('Authorization', `Bearer ${tokenForUser1}`);
+      .set('Cookie', `${SESSION_COOKIE_NAME}=${tokenForUser1}`);
 
     expect(res.status).toBe(403);
   });
@@ -96,7 +99,7 @@ describe('Session freshness — same old token, DB state decides access (CR-02.2
 
     const res = await request(app.getHttpServer())
       .get('/users/profile')
-      .set('Authorization', `Bearer ${tokenForUser1}`);
+      .set('Cookie', `${SESSION_COOKIE_NAME}=${tokenForUser1}`);
 
     expect(res.status).toBe(401);
   });
@@ -106,7 +109,7 @@ describe('Session freshness — same old token, DB state decides access (CR-02.2
 
     const res = await request(app.getHttpServer())
       .get('/users/profile')
-      .set('Authorization', `Bearer ${tokenForUser1}`);
+      .set('Cookie', `${SESSION_COOKIE_NAME}=${tokenForUser1}`);
 
     expect(res.status).toBe(401);
   });
