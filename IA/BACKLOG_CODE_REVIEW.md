@@ -246,7 +246,9 @@ Garantir evolução segura do schema sem perda do histórico emocional.
 
 ### CR-03.2 — Criar teste permanente de migrations com banco populado
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:** Helpers de banco descartável extraídos para `src/test-utils/disposable-postgres.ts` (reaproveitado por `CR-03.1`). Novo `src/prisma/all-migrations-populated.e2e.spec.ts`: **genérico** — lê `prisma/migrations/` dinamicamente (não fixa nomes de migration), aplica todas menos a mais recente, popula fixture sintética cobrindo usuário, psicólogo com perfil verificado, tutor/menor, check-in, diário, vínculo psicólogo-paciente e registro de consentimento, aplica a migration mais recente por cima, e verifica: contagem de linhas idêntica em todas as 7 tabelas antes/depois; nenhuma tabela ficou vazia; relacionamentos (joins) entre todas as entidades continuam resolvendo; valores de check-in mapeados corretamente; nenhum campo obrigatório ficou nulo. Também roda todas as migrations do zero em banco vazio.
+  Validado que o teste realmente pega regressão: restaurei temporariamente a versão destrutiva original da migration de check-ins (a que motivou `CR-03.1`) e confirmei que o teste falha na hora (`ERROR: column "moodScore" ... contains null values`); revertido antes do commit final. 46/46 testes verdes na suíte completa (3 novos). `npx tsc --noEmit` e `npm run build` limpos.
 - **Prioridade:** P2
 - **Origem:** não existe rehearsal automatizado de schema evolution.
 - **User story:** Como equipe, quero validar migrations contra dados representativos para impedir regressões destrutivas.
