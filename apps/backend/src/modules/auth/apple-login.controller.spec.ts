@@ -5,8 +5,11 @@ import * as request from 'supertest';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { SocialAuthService } from './social-auth.service';
+import { ConfigService } from '@nestjs/config';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
+import { PasswordResetService } from './password-reset.service';
+import { MailerService } from '../../common/mailer/mailer.service';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthProvider } from '../../common/types/auth.types';
@@ -41,6 +44,12 @@ describe('POST /auth/apple — id token verificado vira sessão própria (KAN-16
         SocialAuthService,
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: AppleAuthProvider, useValue: appleAuthProvider },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        {
+          provide: PasswordResetService,
+          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+        },
+        { provide: MailerService, useValue: { send: jest.fn() } },
         { provide: UsersService, useValue: usersService },
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },

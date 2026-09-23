@@ -5,9 +5,12 @@ import * as request from 'supertest';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
+import { ConfigService } from '@nestjs/config';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
+import { PasswordResetService } from './password-reset.service';
+import { MailerService } from '../../common/mailer/mailer.service';
 
 describe('POST /auth/register — public registration cannot mint privileged roles (CR-01.2)', () => {
   let app: INestApplication;
@@ -39,6 +42,12 @@ describe('POST /auth/register — public registration cannot mint privileged rol
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        {
+          provide: PasswordResetService,
+          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+        },
+        { provide: MailerService, useValue: { send: jest.fn() } },
       ],
     }).compile();
 

@@ -10,10 +10,13 @@ import { UsersModule } from '../users/users.module';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
+import { PasswordResetService } from './password-reset.service';
+import { MailerModule } from '../../common/mailer/mailer.module';
 
 @Module({
   imports: [
     UsersModule,
+    MailerModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -32,6 +35,7 @@ import { SocialAuthService } from './social-auth.service';
     GoogleAuthProvider,
     AppleAuthProvider,
     SocialAuthService,
+    PasswordResetService,
   ],
   exports: [AuthService],
 })

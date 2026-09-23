@@ -8,9 +8,12 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { LocalStrategy } from './strategies/local.strategy';
 import { UsersService } from '../users/users.service';
+import { ConfigService } from '@nestjs/config';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
+import { PasswordResetService } from './password-reset.service';
+import { MailerService } from '../../common/mailer/mailer.service';
 
 describe('POST /auth/login — inactive users get the same generic 401 (CR-02.1)', () => {
   let app: INestApplication;
@@ -35,6 +38,12 @@ describe('POST /auth/login — inactive users get the same generic 401 (CR-02.1)
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        {
+          provide: PasswordResetService,
+          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+        },
+        { provide: MailerService, useValue: { send: jest.fn() } },
       ],
     }).compile();
 

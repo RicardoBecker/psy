@@ -104,7 +104,22 @@ export class UsersService {
         birthDate: true,
         isActive: true,
         createdAt: true,
+        // 🔒 KAN-17: JwtStrategy usa isto para invalidar tokens emitidos
+        // antes do último reset de senha — não é exposto em AuthenticatedUser.
+        passwordChangedAt: true,
       },
+    });
+  }
+
+  // 🔒 KAN-17: define uma nova senha (hash) e marca o instante da troca —
+  // é esse timestamp que faz "nova senha invalida sessões anteriores"
+  // funcionar (ver JwtStrategy.validate). Usado tanto por reset-password
+  // (usuário esqueceu a senha) quanto, no futuro, por uma troca de senha
+  // autenticada.
+  async updatePassword(userId: string, passwordHash: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, passwordChangedAt: new Date() },
     });
   }
 

@@ -85,4 +85,73 @@ describe('JwtStrategy.validate — trusts the database, not the token payload (C
       ageGroup: 'ADOLESCENT',
     });
   });
+
+  // 🔒 KAN-17: "nova senha invalida sessões anteriores".
+  describe('password reset invalidates tokens issued before it (KAN-17)', () => {
+    const iatSecondsAgo = (seconds: number) => Math.floor(Date.now() / 1000) - seconds;
+
+    it('rejects a token issued BEFORE the last password reset, even though it has not expired', async () => {
+      const passwordChangedAt = new Date(); // reset aconteceu agora
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        role: 'PATIENT',
+        ageGroup: 'ADULT',
+        isActive: true,
+        passwordChangedAt,
+      });
+
+      const payload = { ...stalePayload, iat: iatSecondsAgo(60) }; // emitido 1min antes do reset
+
+      await expect(strategy.validate(payload as any)).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('accepts a token issued AFTER the last password reset', async () => {
+      const passwordChangedAt = new Date(Date.now() - 60_000); // reset há 1min
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        role: 'PATIENT',
+        ageGroup: 'ADULT',
+        isActive: true,
+        passwordChangedAt,
+      });
+
+      const payload = { ...stalePayload, iat: iatSecondsAgo(1) }; // emitido depois do reset
+
+      const result = await strategy.validate(payload as any);
+      expect(result.id).toBe('user-1');
+    });
+
+    it('rejects a token with no iat at all when a password reset has happened (cannot prove it is post-reset)', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        role: 'PATIENT',
+        ageGroup: 'ADULT',
+        isActive: true,
+        passwordChangedAt: new Date(),
+      });
+
+      const { iat, ...payloadWithoutIat } = { ...stalePayload, iat: undefined as any };
+
+      await expect(strategy.validate(payloadWithoutIat as any)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
+    it('never checked passwordChangedAt for a user who never reset (null) — same as before KAN-17', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        role: 'PATIENT',
+        ageGroup: 'ADULT',
+        isActive: true,
+        passwordChangedAt: null,
+      });
+
+      const result = await strategy.validate(stalePayload as any); // sem iat nenhum
+      expect(result.id).toBe('user-1');
+    });
+  });
 });

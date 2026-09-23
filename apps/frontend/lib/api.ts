@@ -115,6 +115,20 @@ export const authApi = {
     return response.data;
   },
 
+  // 🔑 KAN-17: solicita e-mail de recuperação. Resposta é sempre a mesma
+  // genérica, exista ou não a conta — nunca confiar no texto para saber
+  // "deu certo" no sentido de "o e-mail existe".
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const response = await api.post('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  // 🔑 KAN-17: troca a senha usando o token recebido por e-mail.
+  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean }> {
+    const response = await api.post('/auth/reset-password', { token, newPassword });
+    return response.data;
+  },
+
   // 👤 Obter perfil do usuário autenticado
   async getProfile(): Promise<User> {
     const response = await api.get('/users/profile');

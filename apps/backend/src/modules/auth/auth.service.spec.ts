@@ -1,11 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
+import { PasswordResetService } from './password-reset.service';
+import { MailerService } from '../../common/mailer/mailer.service';
 
 describe('AuthService.validateUser — inactive users never authenticate (CR-02.1)', () => {
   let service: AuthService;
@@ -29,6 +32,12 @@ describe('AuthService.validateUser — inactive users never authenticate (CR-02.
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        {
+          provide: PasswordResetService,
+          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+        },
+        { provide: MailerService, useValue: { send: jest.fn() } },
       ],
     }).compile();
 
@@ -102,5 +111,85 @@ describe('AuthService.validateUser — inactive users never authenticate (CR-02.
     const result = await service.validateUser('social@example.com', 'qualquerSenha123');
 
     expect(result).toBeNull();
+  });
+});
+
+describe('AuthService.forgotPassword/resetPassword — no account enumeration, single-use tokens (KAN-17)', () => {
+  let service: AuthService;
+  let usersService: { findByEmail: jest.Mock; updatePassword: jest.Mock };
+  let passwordResetService: { createTokenForUser: jest.Mock; consumeToken: jest.Mock };
+  let mailerService: { send: jest.Mock };
+
+  beforeEach(async () => {
+    usersService = { findByEmail: jest.fn(), updatePassword: jest.fn() };
+    passwordResetService = { createTokenForUser: jest.fn(), consumeToken: jest.fn() };
+    mailerService = { send: jest.fn() };
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: UsersService, useValue: usersService },
+        { provide: JwtService, useValue: { sign: jest.fn() } },
+        { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
+        { provide: ConfigService, useValue: { get: () => 'http://localhost:3000' } },
+        { provide: PasswordResetService, useValue: passwordResetService },
+        { provide: MailerService, useValue: mailerService },
+      ],
+    }).compile();
+
+    service = moduleRef.get(AuthService);
+  });
+
+  it('sends a reset email with a link to an existing, active user', async () => {
+    usersService.findByEmail.mockResolvedValue({ id: 'user-1', email: 'ativo@example.com', isActive: true });
+    passwordResetService.createTokenForUser.mockResolvedValue('raw-token-123');
+
+    await service.forgotPassword('ativo@example.com');
+
+    expect(passwordResetService.createTokenForUser).toHaveBeenCalledWith('user-1');
+    expect(mailerService.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'ativo@example.com',
+        html: expect.stringContaining('http://localhost:3000/reset-password?token=raw-token-123'),
+      }),
+    );
+  });
+
+  it('does nothing (but does not throw) for a nonexistent email — same resolved outcome as an existing one', async () => {
+    usersService.findByEmail.mockResolvedValue(null);
+
+    await expect(service.forgotPassword('naoexiste@example.com')).resolves.toBeUndefined();
+
+    expect(passwordResetService.createTokenForUser).not.toHaveBeenCalled();
+    expect(mailerService.send).not.toHaveBeenCalled();
+  });
+
+  it('does nothing for a deactivated account — same resolved outcome, no email sent', async () => {
+    usersService.findByEmail.mockResolvedValue({ id: 'user-2', email: 'inativo@example.com', isActive: false });
+
+    await expect(service.forgotPassword('inativo@example.com')).resolves.toBeUndefined();
+
+    expect(mailerService.send).not.toHaveBeenCalled();
+  });
+
+  it('resetPassword updates the password hash for a valid token', async () => {
+    passwordResetService.consumeToken.mockResolvedValue({ userId: 'user-1' });
+
+    await service.resetPassword('token-valido', 'novaSenhaSegura123');
+
+    expect(usersService.updatePassword).toHaveBeenCalledWith('user-1', expect.any(String));
+    const [, hash] = usersService.updatePassword.mock.calls[0];
+    expect(hash).not.toBe('novaSenhaSegura123'); // nunca grava a senha em texto plano
+  });
+
+  it('resetPassword rejects with a generic error for an invalid/expired/already-used token', async () => {
+    passwordResetService.consumeToken.mockResolvedValue(null);
+
+    await expect(service.resetPassword('token-invalido', 'novaSenhaSegura123')).rejects.toThrow(
+      'Link inválido ou expirado.',
+    );
+    expect(usersService.updatePassword).not.toHaveBeenCalled();
   });
 });

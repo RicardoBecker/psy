@@ -37,6 +37,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException();
     }
 
+    // 🔒 KAN-17: um reset de senha marca passwordChangedAt — qualquer token
+    // emitido ANTES desse instante (iat, em segundos) é rejeitado aqui,
+    // mesmo que ainda não tenha expirado. É assim que "nova senha invalida
+    // sessões anteriores" funciona sem precisar de blacklist/sessão no banco.
+    if (
+      user.passwordChangedAt &&
+      (!payload.iat || payload.iat * 1000 < user.passwordChangedAt.getTime())
+    ) {
+      throw new UnauthorizedException();
+    }
+
     return {
       id: user.id,
       email: user.email,
