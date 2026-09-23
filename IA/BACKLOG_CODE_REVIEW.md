@@ -449,7 +449,17 @@ Reduzir exposição conhecida da cadeia de dependências e endurecer as fronteir
 
 ### CR-05.4 — Migrar token para cookie seguro controlado pelo servidor
 
-- **Status:** TODO
+- **Status:** DONE
+- **Evidência:**
+  - **Contrato de sessão** (`src/common/session-cookie.ts`, novo): `emotional_app_token` (HttpOnly, `SameSite=Lax`, `Secure` em produção, `path=/`, 7 dias) carrega o JWT — nunca mais no corpo da resposta. `csrf_token` (não-HttpOnly, mesmos demais atributos) é o par do double-submit cookie.
+  - **Backend**: `login`/`register` usam `@Res({passthrough:true})` para setar os dois cookies via `setSessionCookies`; a resposta passa a ser `{ user, csrfToken }`, sem `access_token`. Novo `POST /auth/logout` (autenticado) limpa os dois cookies via `clearSessionCookies`. `JwtStrategy` extrai o JWT exclusivamente de `req.cookies.emotional_app_token` (não mais do header `Authorization`).
+  - **CSRF** (`src/common/csrf.guard.ts` + `csrf.middleware.ts` + `skip-csrf.decorator.ts`): double-submit cookie aplicado globalmente (`APP_GUARD`) a toda requisição `POST/PUT/PATCH/DELETE` — header `X-CSRF-Token` precisa bater exatamente com o cookie `csrf_token`. Middleware global garante que todo cliente tenha um `csrf_token` desde a primeira requisição (mesmo antes de logar). `register`/`login` isentos (`@SkipCsrf()`) — ainda não existe sessão para um atacante abusar nesse ponto.
+  - **CORS** (`CR-05.3`): `credentials: true` (necessário para o cookie trafegar cross-origin frontend↔backend), origem sempre exata (nunca wildcard, já garantido).
+  - **Frontend**: `lib/api.ts` — axios com `withCredentials: true`; interceptor novo ecoa `csrf_token` (lido de `document.cookie`, que só expõe esse cookie, nunca o de sessão) como header `X-CSRF-Token` em toda requisição; interceptor de `Authorization: Bearer` removido (não há mais token acessível ao JS para anexar). `lib/auth.ts` — `tokenStorage` removido inteiramente; `authHelpers.logout()` agora é assíncrono, chama `POST /auth/logout` (só o servidor consegue limpar um cookie HttpOnly) e limpa o cache local mesmo se a chamada falhar (nunca trava "logado"). `AuthProvider` — `initAuth` não tem mais uma checagem local prévia (não há mais token para checar): sempre chama `getProfile()`, usando o usuário em cache apenas para render otimista; `logout` do contexto virou `async` (call site em `dashboard/page.tsx` atualizado).
+  - **Middleware do Next.js**: **nenhuma alteração necessária** — HttpOnly bloqueia leitura via `document.cookie` no navegador, mas o middleware roda no servidor e lê o cookie normalmente a partir do request; mesmo nome de cookie (`emotional_app_token`) preservado de propósito para isso.
+- **Validação end-to-end contra backend real** (Docker, não só mocks): registro → `Set-Cookie` com `HttpOnly` confirmado no cookie de sessão e ausente no `csrf_token`; corpo da resposta sem `access_token`; `GET /users/profile` com o cookie funciona; `POST` mutável sem `X-CSRF-Token` → 403; com header igual ao cookie → sucesso; `POST /auth/logout` → `Set-Cookie` com `Expires` no passado nos dois cookies, e o mesmo cookie salvo deixa de funcionar (401) logo em seguida; JWT assinado com segredo diferente do servidor → 401; CORS preflight cross-origin (porta 3000→3001) com `credentials: true` reflete a origem exata; middleware do Next.js continua redirecionando corretamente (`/dashboard` sem cookie → 307; paciente em `/dashboard/admin/users` → 307).
+- **Testes automatizados novos**: `csrf.config.spec` combinado em `csrf.guard`/`csrf.middleware` cobertos por `csrf.e2e.spec.ts` (8 casos: GET nunca exige CSRF e já recebe o cookie; POST sem header → 403; POST com header mas sem cookie → 403; header ≠ cookie → 403; header = cookie → sucesso; `@SkipCsrf()` ignora a checagem; middleware seta o cookie só se ainda não existir); `logout.controller.spec.ts` (4 casos: sem sessão → 401; com sessão → limpa os dois cookies; token assinado com segredo errado → 401; valor sem formato de JWT → 401); `login.controller.spec.ts` atualizado (cookie HttpOnly presente, `csrf_token` legível, corpo sem `access_token`); `session-freshness.e2e.spec.ts` (`CR-02.2`) migrado de header `Authorization` para cookie, mesmo comportamento preservado; `auth-provider.test.tsx` (`CR-04.2`) reescrito para o novo modelo — inclui o cenário novo "sem cache local mas cookie válido no servidor autentica mesmo assim" e dois casos novos para `logout()` (chama o servidor; limpa o estado local mesmo se a chamada falhar).
+  74/74 testes no backend, 9/9 no frontend. `npx tsc --noEmit`, `npm run lint` e `npm run build` limpos nos dois apps. `npm run test:diff-cov`: backend 90.4%, frontend 91.7% (ambos acima da meta de 90%).
 - **Prioridade:** P2
 - **Origem:** JWT é duplicado em localStorage e cookie legível por JavaScript; middleware apenas decodifica assinatura.
 - **User story:** Como usuário, quero que minha sessão seja menos exposta a roubo por scripts no navegador.
@@ -615,8 +625,8 @@ Uma história só pode ser marcada `DONE` quando:
 - [x] Usuário inativo e role revogada perdem acesso imediatamente. (`CR-02.1` + `CR-02.2`)
 - [x] Cadastro público não controla role. (`CR-01.2`)
 - [x] Psicólogo não controla `verified`. (`CR-01.3`)
-- [ ] Audit não possui critical/high sem exceção formal.
-- [ ] CORS está restrito em produção.
-- [ ] Token não está disponível em localStorage ou cookie legível por JavaScript.
+- [x] Audit não possui critical/high sem exceção formal. (`CR-05.1`/`CR-05.2` — residuais documentados com alcance, mitigação, responsável e prazo)
+- [x] CORS está restrito em produção. (`CR-05.3`)
+- [x] Token não está disponível em localStorage ou cookie legível por JavaScript. (`CR-05.4`)
 - [ ] CI bloqueia regressões.
 - [ ] Novo code review confirma o encerramento dos achados.

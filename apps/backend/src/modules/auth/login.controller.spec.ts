@@ -40,7 +40,7 @@ describe('POST /auth/login — inactive users get the same generic 401 (CR-02.1)
     await app.close();
   });
 
-  it('active user with correct password logs in and receives a token', async () => {
+  it('active user with correct password logs in and receives the session as an HttpOnly cookie, never in the body (CR-05.4)', async () => {
     usersService.findByEmail.mockResolvedValue({
       id: 'user-1',
       email: 'ativo@example.com',
@@ -54,7 +54,20 @@ describe('POST /auth/login — inactive users get the same generic 401 (CR-02.1)
       .send({ email: 'ativo@example.com', password: PASSWORD });
 
     expect(res.status).toBe(201);
-    expect(res.body.access_token).toBe('fake.jwt.token');
+    expect(res.body).not.toHaveProperty('access_token');
+    expect(res.body.user).toBeDefined();
+    expect(typeof res.body.csrfToken).toBe('string');
+    expect(res.body.csrfToken.length).toBeGreaterThan(0);
+
+    const cookies = res.headers['set-cookie'] as unknown as string[];
+    const sessionCookie = cookies.find((c) => c.startsWith('emotional_app_token='));
+    expect(sessionCookie).toBeDefined();
+    expect(sessionCookie).toMatch(/HttpOnly/i);
+    expect(sessionCookie).toContain('fake.jwt.token');
+
+    const csrfCookie = cookies.find((c) => c.startsWith('csrf_token='));
+    expect(csrfCookie).toBeDefined();
+    expect(csrfCookie).not.toMatch(/HttpOnly/i); // precisa ser legível por JS
   });
 
   it('deactivated user with the correct password receives 401 and no token', async () => {

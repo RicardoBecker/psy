@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -11,6 +12,8 @@ import { GuardianModule } from './modules/guardian/guardian.module';
 import { PsychologistModule } from './modules/psychologist/psychologist.module';
 import { ConsentModule } from './modules/consent/consent.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { CsrfCookieMiddleware } from './common/csrf.middleware';
+import { CsrfGuard } from './common/csrf.guard';
 
 @Module({
   imports: [
@@ -28,6 +31,10 @@ import { AdminModule } from './modules/admin/admin.module';
     AdminModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: CsrfGuard }],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CsrfCookieMiddleware).forRoutes('*');
+  }
+}

@@ -15,16 +15,28 @@ const API_BASE_URL = resolveApiBaseUrl();
 // 🔧 Configuração do cliente HTTP
 export const api = axios.create({
   baseURL: API_BASE_URL,
+  // 🔒 CR-05.4: a sessão vive num cookie HttpOnly setado pelo backend — o
+  // navegador precisa ser instruído a enviar/aceitar cookies em requisições
+  // cross-origin (frontend e backend em portas diferentes).
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// 🔒 Interceptor para adicionar token JWT automaticamente
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+// 🎫 Interceptor CSRF: ecoa o csrf_token (cookie legível por JS, par do
+// cookie de sessão HttpOnly) como header em toda requisição — o backend
+// exige os dois baterem em requisições mutáveis (double-submit cookie).
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('emotional_app_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const csrfToken = readCookie('csrf_token');
+  if (csrfToken) {
+    config.headers['X-CSRF-Token'] = csrfToken;
   }
   return config;
 });
@@ -34,7 +46,6 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('emotional_app_token');
       localStorage.removeItem('emotional_app_user');
       window.location.href = '/login';
     }
@@ -71,7 +82,11 @@ export interface User {
 
 export interface AuthResponse {
   user: User;
-  access_token: string;
+  // 🔒 CR-05.4: o JWT em si nunca chega ao JavaScript — vive só no cookie
+  // HttpOnly setado pelo backend. csrfToken é o par legível do
+  // double-submit cookie, já espelhado em cookie por essa mesma resposta;
+  // exposto aqui só para eventual uso imediato sem esperar o próximo tick.
+  csrfToken: string;
 }
 
 // 📡 API Functions para autenticação
@@ -104,6 +119,12 @@ export const authApi = {
   async getProfile(): Promise<User> {
     const response = await api.get('/users/profile');
     return response.data;
+  },
+
+  // 🚪 Encerra a sessão no servidor (limpa o cookie HttpOnly — o
+  // JavaScript não consegue fazer isso sozinho).
+  async logout(): Promise<void> {
+    await api.post('/auth/logout');
   },
 
   // 🔍 Health check da API

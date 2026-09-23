@@ -51,7 +51,11 @@ export function buildCorsOptions(env: NodeJS.ProcessEnv = process.env): CorsOpti
       callback(new Error(`Origem não autorizada pelo CORS: ${requestOrigin}`), false);
     },
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: false,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+    // 🔒 CR-05.4: sessão agora é cookie HttpOnly — o navegador só envia/
+    // recebe cookies em requisições cross-origin com credentials: true nos
+    // dois lados (aqui e no fetch/axios do frontend), e só quando `origin`
+    // reflete a origem exata da requisição (nunca "*", já garantido acima).
+    credentials: true,
   };
 }
