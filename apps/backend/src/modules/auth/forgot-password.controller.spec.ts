@@ -10,6 +10,7 @@ import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { PasswordResetService } from './password-reset.service';
 import { MailerService } from '../../common/mailer/mailer.service';
+import { AppleChallengeService } from './apple-challenge.service';
 import { UsersService } from '../users/users.service';
 
 // 🔒 KAN-17: POST /auth/forgot-password nunca revela se o e-mail existe —
@@ -40,6 +41,7 @@ describe('POST /auth/forgot-password — never confirms or denies an email exist
         { provide: ConfigService, useValue: { get: () => 'http://localhost:3000' } },
         { provide: PasswordResetService, useValue: passwordResetService },
         { provide: MailerService, useValue: mailerService },
+        AppleChallengeService,
       ],
     }).compile();
 
