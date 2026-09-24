@@ -21,18 +21,26 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
   let usersService: {
     findById: jest.Mock;
     findByEmail: jest.Mock;
-    createFromSocialProfile: jest.Mock;
   };
-  let prisma: { socialIdentity: { findUnique: jest.Mock; create: jest.Mock } };
+  let prisma: {
+    socialIdentity: { findUnique: jest.Mock; create: jest.Mock };
+    user: { create: jest.Mock };
+    $transaction: jest.Mock;
+  };
+  let tx: { user: { create: jest.Mock }; socialIdentity: { create: jest.Mock } };
 
   beforeAll(async () => {
     googleAuthProvider = { verify: jest.fn() };
     usersService = {
       findById: jest.fn(),
       findByEmail: jest.fn(),
-      createFromSocialProfile: jest.fn(),
     };
-    prisma = { socialIdentity: { findUnique: jest.fn(), create: jest.fn() } };
+    tx = { user: { create: jest.fn() }, socialIdentity: { create: jest.fn() } };
+    prisma = {
+      socialIdentity: { findUnique: jest.fn(), create: jest.fn() },
+      user: { create: jest.fn() },
+      $transaction: jest.fn().mockImplementation((cb) => cb(tx)),
+    };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -66,7 +74,7 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
     });
     prisma.socialIdentity.findUnique.mockResolvedValue(null);
     usersService.findByEmail.mockResolvedValue(null);
-    usersService.createFromSocialProfile.mockResolvedValue({
+    tx.user.create.mockResolvedValue({
       id: 'user-novo',
       email: 'nova@example.com',
       role: 'PATIENT',
@@ -110,7 +118,7 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
 
     expect(res.status).toBe(201);
     expect(res.body.user.id).toBe('user-existente');
-    expect(usersService.createFromSocialProfile).not.toHaveBeenCalled();
+    expect(tx.user.create).not.toHaveBeenCalled();
   });
 
   it('rejects an invalid/expired Google token with 401 and issues no session', async () => {
