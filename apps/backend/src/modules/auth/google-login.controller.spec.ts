@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { SocialAuthService } from './social-auth.service';
 import { ConfigService } from '@nestjs/config';
+import { AppleChallengeService } from './apple-challenge.service';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { PasswordResetService } from './password-reset.service';
@@ -28,18 +29,26 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
   let usersService: {
     findById: jest.Mock;
     findByEmail: jest.Mock;
-    createFromSocialProfile: jest.Mock;
   };
-  let prisma: { socialIdentity: { findUnique: jest.Mock; create: jest.Mock } };
+  let prisma: {
+    socialIdentity: { findUnique: jest.Mock; create: jest.Mock };
+    user: { create: jest.Mock };
+    $transaction: jest.Mock;
+  };
+  let tx: { user: { create: jest.Mock }; socialIdentity: { create: jest.Mock } };
 
   beforeAll(async () => {
     googleAuthProvider = { verify: jest.fn() };
     usersService = {
       findById: jest.fn(),
       findByEmail: jest.fn(),
-      createFromSocialProfile: jest.fn(),
     };
-    prisma = { socialIdentity: { findUnique: jest.fn(), create: jest.fn() } };
+    tx = { user: { create: jest.fn() }, socialIdentity: { create: jest.fn() } };
+    prisma = {
+      socialIdentity: { findUnique: jest.fn(), create: jest.fn() },
+      user: { create: jest.fn() },
+      $transaction: jest.fn().mockImplementation((cb) => cb(tx)),
+    };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -51,12 +60,13 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
         { provide: ConfigService, useValue: { get: jest.fn() } },
         {
           provide: PasswordResetService,
-          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+          useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
         RateLimitStore,
         RateLimitMetricsService,
         AuthRateLimitGuard,
+        AppleChallengeService,
         { provide: UsersService, useValue: usersService },
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },
@@ -83,7 +93,7 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
     });
     prisma.socialIdentity.findUnique.mockResolvedValue(null);
     usersService.findByEmail.mockResolvedValue(null);
-    usersService.createFromSocialProfile.mockResolvedValue({
+    tx.user.create.mockResolvedValue({
       id: 'user-novo',
       email: 'nova@example.com',
       role: 'PATIENT',
@@ -127,7 +137,7 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
 
     expect(res.status).toBe(201);
     expect(res.body.user.id).toBe('user-existente');
-    expect(usersService.createFromSocialProfile).not.toHaveBeenCalled();
+    expect(tx.user.create).not.toHaveBeenCalled();
   });
 
   it('rejects an invalid/expired Google token with 401 and issues no session', async () => {

@@ -13,6 +13,7 @@ import { SocialAuthService } from './social-auth.service';
 import { PasswordResetService } from './password-reset.service';
 import { MailerModule } from '../../common/mailer/mailer.module';
 import { RateLimitModule } from '../../common/rate-limit/rate-limit.module';
+import { AppleChallengeService } from './apple-challenge.service';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { RateLimitModule } from '../../common/rate-limit/rate-limit.module';
     AppleAuthProvider,
     SocialAuthService,
     PasswordResetService,
+    AppleChallengeService,
   ],
   exports: [AuthService],
 })

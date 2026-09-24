@@ -153,5 +153,33 @@ describe('JwtStrategy.validate — trusts the database, not the token payload (C
       const result = await strategy.validate(stalePayload as any); // sem iat nenhum
       expect(result.id).toBe('user-1');
     });
+
+    // 🔒 Code review PR #19 (KAN-156, P2): iat tem precisão de segundos;
+    // passwordChangedAt tem milissegundos. Um login emitido no MESMO
+    // segundo do reset (mas depois dele, em milissegundos) não pode ser
+    // rejeitado por essa diferença de precisão.
+    it('accepts a token whose iat second equals the reset second, even if the reset happened with a non-zero millisecond offset', async () => {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      // reset "no meio" do segundo — ex.: 12:00:00.500
+      const passwordChangedAt = new Date(nowSeconds * 1000 + 500);
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        role: 'PATIENT',
+        ageGroup: 'ADULT',
+        isActive: true,
+        passwordChangedAt,
+      });
+
+      // token emitido no MESMO segundo (iat trunca para o início do
+      // segundo) — com a comparação antiga (ms vs ms truncado), isso
+      // seria sempre "iat*1000 < passwordChangedAt.getTime()" → rejeitado
+      // incorretamente, mesmo que o login tenha sido efetivamente DEPOIS
+      // do reset em wall-clock time.
+      const payload = { ...stalePayload, iat: nowSeconds };
+
+      const result = await strategy.validate(payload as any);
+      expect(result.id).toBe('user-1');
+    });
   });
 });

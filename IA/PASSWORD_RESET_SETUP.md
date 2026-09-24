@@ -17,9 +17,22 @@ apontar para um servidor SMTP por ambiente.
 - Trocar a senha invalida TODAS as sessões anteriores daquele usuário
   (`User.passwordChangedAt` + checagem em `JwtStrategy.validate`) — não é
   preciso fazer login de novo em cada dispositivo manualmente, mas sessões
-  antigas param de funcionar.
+  antigas param de funcionar. Comparação feita na mesma precisão
+  (segundos) que o `iat` do JWT — corrigido no code review (KAN-156, P2)
+  depois de um bug onde um login no MESMO segundo do reset podia ser
+  rejeitado por diferença de precisão (`iat` em segundos vs.
+  `passwordChangedAt` em milissegundos).
 - Telas: `/forgot-password` (solicitar) e `/reset-password?token=...`
   (definir nova senha), com link "Esqueceu sua senha?" na tela de login.
+- **Atomicidade (code review PR #19, KAN-156, P2):** gerar um token novo
+  (invalidando o anterior) roda numa transação; consumir o token (marcá-lo
+  usado) e gravar a nova senha também rodam numa ÚNICA transação
+  (`PasswordResetService.consumeTokenAndUpdatePassword`) — uma falha
+  transitória na escrita da senha não deixa o token "queimado" sem a senha
+  ter mudado.
+- **PII em logs (code review PR #19, KAN-156, P3):** `MailerService` nunca
+  loga o endereço completo — usa `maskEmail()` (`common/email.util.ts`),
+  ex.: `p***@exemplo.com`.
 
 🚧 **Pendente de configuração:** um servidor SMTP real por ambiente. Sem
 isso, o backend não lança erro nem quebra o fluxo — só loga um aviso e o

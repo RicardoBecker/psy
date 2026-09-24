@@ -17,6 +17,28 @@ Este documento descreve como configurar (credenciais reais) os logins sociais co
   código — ver `apps/backend/src/modules/auth/providers/apple.provider.ts`.
 - Frontend usa o "Sign in with Apple JS" (popup, carregado sob demanda) para
   obter o `identityToken` — ver `apps/frontend/lib/apple-identity.ts`.
+- **Code review PR #18 (KAN-158, P1) — handshake state/nonce:** antes de
+  abrir o popup, o frontend chama `GET /auth/apple/start`, que gera um
+  `state`/`nonce` e guarda num cookie HttpOnly assinado de 5 minutos
+  (`AppleChallengeService`). Os dois valores vão para
+  `AppleID.auth.init()`; na volta, o backend exige que o `state` do corpo
+  bata com o do cookie E que o claim `nonce` do ID token bata com o nonce
+  do desafio — sem isso, um ID token Apple válido obtido fora desta
+  tentativa (replay, phishing, MITM) funcionaria como bearer credential.
+  Ver [Verifying a user](https://developer.apple.com/documentation/signinwithapple/verifying-a-user).
+- **Decisão de escopo consciente:** o finding original também sugeria
+  validar o `authorization.code` contra o endpoint de token da Apple
+  (`https://appleid.apple.com/auth/token`). Isso exigiria gerar um client
+  secret JWT (ES256) com `APPLE_TEAM_ID`/`APPLE_KEY_ID`/chave privada do
+  Apple Developer — infraestrutura que não existe neste projeto e que o
+  handshake state/nonce acima já torna redundante para o risco descrito
+  (replay/session-swap): nonce prova que o token é resposta à tentativa
+  DESTE navegador: um atacante não consegue obter um ID token Apple
+  assinado com um nonce que ele não controla sem a vítima autenticar de
+  verdade contra a Apple usando esse nonce. Troca de código fica como
+  hardening adicional (defesa em profundidade "porque a Apple recomenda"),
+  não como algo que fecha uma vulnerabilidade hoje aberta — revisitar se o
+  time decidir que vale o custo operacional de gerenciar a chave privada.
 
 Contas: identidade vinculada via tabela `social_identities`, mesma lógica
 para os dois provedores (`SocialAuthService`); login com e-mail já existente

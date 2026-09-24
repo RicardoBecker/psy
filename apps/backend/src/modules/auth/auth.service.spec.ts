@@ -35,7 +35,7 @@ describe('AuthService.validateUser — inactive users never authenticate (CR-02.
         { provide: ConfigService, useValue: { get: jest.fn() } },
         {
           provide: PasswordResetService,
-          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+          useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
       ],
@@ -116,13 +116,19 @@ describe('AuthService.validateUser — inactive users never authenticate (CR-02.
 
 describe('AuthService.forgotPassword/resetPassword — no account enumeration, single-use tokens (KAN-17)', () => {
   let service: AuthService;
-  let usersService: { findByEmail: jest.Mock; updatePassword: jest.Mock };
-  let passwordResetService: { createTokenForUser: jest.Mock; consumeToken: jest.Mock };
+  let usersService: { findByEmail: jest.Mock };
+  let passwordResetService: {
+    createTokenForUser: jest.Mock;
+    consumeTokenAndUpdatePassword: jest.Mock;
+  };
   let mailerService: { send: jest.Mock };
 
   beforeEach(async () => {
-    usersService = { findByEmail: jest.fn(), updatePassword: jest.fn() };
-    passwordResetService = { createTokenForUser: jest.fn(), consumeToken: jest.fn() };
+    usersService = { findByEmail: jest.fn() };
+    passwordResetService = {
+      createTokenForUser: jest.fn(),
+      consumeTokenAndUpdatePassword: jest.fn(),
+    };
     mailerService = { send: jest.fn() };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -174,22 +180,28 @@ describe('AuthService.forgotPassword/resetPassword — no account enumeration, s
     expect(mailerService.send).not.toHaveBeenCalled();
   });
 
-  it('resetPassword updates the password hash for a valid token', async () => {
-    passwordResetService.consumeToken.mockResolvedValue({ userId: 'user-1' });
+  // 🔒 Code review PR #19 (KAN-156, P2): hash calculado pelo AuthService
+  // ANTES de chamar o PasswordResetService — consumo do token e escrita da
+  // senha agora são atômicos dentro de consumeTokenAndUpdatePassword
+  // (ver password-reset.service.spec.ts para a garantia de atomicidade).
+  it('resetPassword hashes the new password and delegates the atomic write to PasswordResetService', async () => {
+    passwordResetService.consumeTokenAndUpdatePassword.mockResolvedValue({ userId: 'user-1' });
 
     await service.resetPassword('token-valido', 'novaSenhaSegura123');
 
-    expect(usersService.updatePassword).toHaveBeenCalledWith('user-1', expect.any(String));
-    const [, hash] = usersService.updatePassword.mock.calls[0];
+    expect(passwordResetService.consumeTokenAndUpdatePassword).toHaveBeenCalledWith(
+      'token-valido',
+      expect.any(String),
+    );
+    const [, hash] = passwordResetService.consumeTokenAndUpdatePassword.mock.calls[0];
     expect(hash).not.toBe('novaSenhaSegura123'); // nunca grava a senha em texto plano
   });
 
   it('resetPassword rejects with a generic error for an invalid/expired/already-used token', async () => {
-    passwordResetService.consumeToken.mockResolvedValue(null);
+    passwordResetService.consumeTokenAndUpdatePassword.mockResolvedValue(null);
 
     await expect(service.resetPassword('token-invalido', 'novaSenhaSegura123')).rejects.toThrow(
       'Link inválido ou expirado.',
     );
-    expect(usersService.updatePassword).not.toHaveBeenCalled();
   });
 });

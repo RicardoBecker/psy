@@ -41,11 +41,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // emitido ANTES desse instante (iat, em segundos) é rejeitado aqui,
     // mesmo que ainda não tenha expirado. É assim que "nova senha invalida
     // sessões anteriores" funciona sem precisar de blacklist/sessão no banco.
-    if (
-      user.passwordChangedAt &&
-      (!payload.iat || payload.iat * 1000 < user.passwordChangedAt.getTime())
-    ) {
-      throw new UnauthorizedException();
+    //
+    // 🔒 Code review PR #19 (KAN-156, P2): `iat` tem precisão de SEGUNDOS
+    // (padrão JWT), mas `passwordChangedAt` é um Date com milissegundos.
+    // Comparar `iat * 1000 < passwordChangedAt.getTime()` direto rejeitava
+    // até um login legítimo emitido no MESMO segundo do reset (iat
+    // truncado para o início do segundo sempre fica "no passado" frente a
+    // um passwordChangedAt com milissegundos não-zero). Corrigido
+    // truncando passwordChangedAt para a mesma precisão (segundos) antes
+    // de comparar — aceita, de propósito, uma janela de até ~1s onde um
+    // token emitido pouco ANTES do reset (mesmo segundo) ainda passaria;
+    // impacto prático desprezível (exigiria um token roubado emitido no
+    // mesmíssimo segundo do reset da vítima) frente ao risco maior de
+    // rejeitar sessões legítimas.
+    if (user.passwordChangedAt) {
+      const passwordChangedAtSeconds = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (!payload.iat || payload.iat < passwordChangedAtSeconds) {
+        throw new UnauthorizedException();
+      }
     }
 
     return {

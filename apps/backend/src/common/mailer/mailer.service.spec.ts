@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import { MailerService } from './mailer.service';
 
 const sendMail = jest.fn();
@@ -57,5 +58,38 @@ describe('MailerService — never fails the caller, never sends without SMTP con
     await expect(
       service.send({ to: 'a@example.com', subject: 'Oi', html: '<p>Oi</p>', text: 'Oi' }),
     ).resolves.toBeUndefined();
+  });
+
+  // 🔒 Code review PR #19 (KAN-156, P3): logs operacionais não podem
+  // expor o endereço completo de quem solicitou recuperação de senha.
+  describe('never logs the raw email address (KAN-156, P3)', () => {
+    it('masks the address in the "SMTP não configurado" warning', async () => {
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const service = new MailerService(configServiceWith({}));
+
+      await service.send({ to: 'vitima@example.com', subject: 'Oi', html: '<p>Oi</p>', text: 'Oi' });
+
+      expect(warnSpy).toHaveBeenCalled();
+      const loggedMessage = warnSpy.mock.calls[0][0] as string;
+      expect(loggedMessage).not.toContain('vitima@example.com');
+      expect(loggedMessage).toContain('v***@example.com');
+
+      warnSpy.mockRestore();
+    });
+
+    it('masks the address in the send-failure error log', async () => {
+      sendMail.mockRejectedValue(new Error('conexão SMTP recusada'));
+      const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+      const service = new MailerService(configServiceWith({ SMTP_HOST: 'smtp.example.com' }));
+
+      await service.send({ to: 'vitima@example.com', subject: 'Oi', html: '<p>Oi</p>', text: 'Oi' });
+
+      expect(errorSpy).toHaveBeenCalled();
+      const loggedMessage = errorSpy.mock.calls[0][0] as string;
+      expect(loggedMessage).not.toContain('vitima@example.com');
+      expect(loggedMessage).toContain('v***@example.com');
+
+      errorSpy.mockRestore();
+    });
   });
 });

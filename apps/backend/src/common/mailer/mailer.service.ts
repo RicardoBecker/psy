@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import { maskEmail } from '../email.util';
 
 export interface MailMessage {
   to: string;
@@ -43,7 +44,7 @@ export class MailerService {
   async send(message: MailMessage): Promise<void> {
     if (!this.transporter) {
       this.logger.warn(
-        `SMTP não configurado — e-mail para ${message.to} NÃO enviado de verdade ("${message.subject}").`,
+        `SMTP não configurado — e-mail para ${maskEmail(message.to)} NÃO enviado de verdade ("${message.subject}").`,
       );
       return;
     }
@@ -54,7 +55,9 @@ export class MailerService {
       // 🔒 Falha de envio não deve virar 500 no fluxo de reset de senha —
       // isso permitiria diferenciar "e-mail existe, SMTP falhou" de
       // "e-mail não existe", reintroduzindo enumeração de contas.
-      this.logger.error(`Falha ao enviar e-mail para ${message.to}: ${(err as Error).message}`);
+      // Code review PR #19 (KAN-156, P3): endereço mascarado — logs
+      // operacionais não podem expor quem solicitou recuperação de senha.
+      this.logger.error(`Falha ao enviar e-mail para ${maskEmail(message.to)}: ${(err as Error).message}`);
     }
   }
 }
