@@ -7,6 +7,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { SocialLoginDto } from './dto/social-login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { AppleLoginDto } from './dto/apple-login.dto';
 import { SkipCsrf } from '../../common/skip-csrf.decorator';
 import { setSessionCookies, clearSessionCookies } from '../../common/session-cookie';
@@ -110,5 +112,26 @@ export class AuthController {
     const { user, access_token } = await this.authService.loginWithApple(dto.token, nonce);
     const csrfToken = setSessionCookies(res, access_token);
     return { user, csrfToken };
+  }
+
+  // 🔒 KAN-17: mesma resposta genérica sempre — não confirma nem nega que
+  // o e-mail existe (anti-enumeração de contas). Isento de CSRF: quem
+  // solicita isso não tem sessão nenhuma (nem própria, nem de vítima) para
+  // um atacante abusar.
+  @SkipCsrf()
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.forgotPassword(dto.email);
+    return { message: 'Se o e-mail existir, enviaremos instruções de recuperação.' };
+  }
+
+  // 🔒 KAN-17: a prova de autorização aqui é o próprio token (só quem tem
+  // acesso à caixa de entrada do e-mail o recebeu) — não uma sessão, por
+  // isso isento de CSRF como os demais endpoints de entrada.
+  @SkipCsrf()
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.token, dto.newPassword);
+    return { success: true };
   }
 }

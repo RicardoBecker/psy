@@ -53,6 +53,12 @@ model User {
   birthDate    DateTime?
   isActive     Boolean   @default(true) @map("is_active")
   createdAt    DateTime  @default(now()) @map("created_at")
+  // 🔒 KAN-17: timestamp da última troca de senha (só setado por um reset
+  // de verdade, nunca no cadastro). JwtStrategy usa isto para invalidar
+  // qualquer token emitido ANTES desse instante — é assim que "nova senha
+  // invalida sessões anteriores" funciona sem precisar de uma tabela de
+  // sessões/blacklist de JWT.
+  passwordChangedAt DateTime? @map("password_changed_at")
 
   // Relacionamentos existentes
   emotionalCheckins EmotionalCheckin[]
@@ -67,6 +73,7 @@ model User {
   patientLinks           PatientPsychologistLink[] @relation("PatientLinks")
   psychologistLinks      PatientPsychologistLink[] @relation("PsychologistLinks")
   socialIdentities       SocialIdentity[]
+  passwordResetTokens    PasswordResetToken[]
 
   @@map("users")
 }
@@ -88,6 +95,25 @@ model SocialIdentity {
   @@unique([provider, providerUserId])
   @@index([userId])
   @@map("social_identities")
+}
+
+// 🔒 KAN-17: guarda só o HASH do token de recuperação (SHA-256), nunca o
+// valor cru — o mesmo raciocínio de nunca guardar senha em texto plano.
+// `usedAt` faz o token ser de uso único; `expiresAt` limita a janela de
+// validade. Uma nova solicitação (AuthService.forgotPassword) invalida
+// qualquer token anterior ainda não usado do mesmo usuário.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model GuardianRelationship {

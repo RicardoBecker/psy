@@ -10,11 +10,14 @@ import { UsersModule } from '../users/users.module';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
+import { PasswordResetService } from './password-reset.service';
+import { MailerModule } from '../../common/mailer/mailer.module';
 import { AppleChallengeService } from './apple-challenge.service';
 
 @Module({
   imports: [
     UsersModule,
+    MailerModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -33,6 +36,7 @@ import { AppleChallengeService } from './apple-challenge.service';
     GoogleAuthProvider,
     AppleAuthProvider,
     SocialAuthService,
+    PasswordResetService,
     AppleChallengeService,
   ],
   exports: [AuthService],

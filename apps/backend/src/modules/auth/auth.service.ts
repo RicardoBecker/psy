@@ -1,11 +1,15 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from '../../common/types/auth.types';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
+import { PasswordResetService } from './password-reset.service';
+import { buildPasswordResetEmail } from './password-reset-email';
+import { MailerService } from '../../common/mailer/mailer.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -13,9 +17,12 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private configService: ConfigService,
     private googleAuthProvider: GoogleAuthProvider,
     private appleAuthProvider: AppleAuthProvider,
     private socialAuthService: SocialAuthService,
+    private passwordResetService: PasswordResetService,
+    private mailerService: MailerService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -85,5 +92,42 @@ export class AuthService {
     const profile = await this.appleAuthProvider.verify(idToken, expectedNonce);
     const user = await this.socialAuthService.resolveOrCreateUser(profile);
     return this.login(user);
+  }
+
+  // 🔒 KAN-17: SEMPRE resolve com sucesso (void), exista ou não a conta —
+  // é o controller quem devolve a mesma mensagem genérica nos dois casos.
+  // Só envia e-mail de verdade quando existe conta ativa com aquele e-mail;
+  // contas social-only (sem passwordHash ainda) também recebem, porque
+  // definir uma senha aqui é um jeito legítimo de recuperar acesso.
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.usersService.findByEmail(email);
+    if (!user || !user.isActive) return;
+
+    const rawToken = await this.passwordResetService.createTokenForUser(user.id);
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
+    const { subject, html, text } = buildPasswordResetEmail(resetUrl);
+
+    await this.mailerService.send({ to: user.email, subject, html, text });
+  }
+
+  // 🔒 KAN-17: token inválido/expirado/já usado gera sempre a mesma
+  // BadRequestException genérica — não diferenciamos os três casos na
+  // resposta (evita dar pistas sobre o estado interno do token a quem
+  // estiver testando valores).
+  //
+  // 🔒 Code review PR #19 (KAN-156, P2): o hash é calculado AQUI, antes de
+  // consumeTokenAndUpdatePassword — bcrypt não toca o banco, então não
+  // precisa (nem deve) rodar dentro da transação que marca o token usado
+  // e grava a senha; só o que precisa ser atômico é a escrita.
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const consumed = await this.passwordResetService.consumeTokenAndUpdatePassword(
+      token,
+      passwordHash,
+    );
+    if (!consumed) {
+      throw new BadRequestException('Link inválido ou expirado.');
+    }
   }
 }
