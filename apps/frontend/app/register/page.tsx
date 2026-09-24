@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../providers/auth-provider';
 import { Button, Input, Alert } from '../../components/ui';
+import { promptGoogleSignIn } from '../../lib/google-identity';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -14,8 +15,9 @@ export default function RegisterPage() {
     confirmPassword: ''
   });
   const [error, setError] = useState('');
-  
-  const { register, isLoading } = useAuth();
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const { register, googleLogin, isLoading } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,6 +53,27 @@ export default function RegisterPage() {
       ...prev,
       [e.target.name]: e.target.value
     }));
+  };
+
+  // 🔍 Code review PR #17 (KAN-157, P2): mesmo fluxo real da tela de login
+  // — o botão não pode terminar em alert() de placeholder em produção.
+  const handleGoogleSignup = async () => {
+    setError('');
+    setIsGoogleLoading(true);
+    try {
+      await promptGoogleSignIn(async (idToken) => {
+        try {
+          await googleLogin(idToken);
+          router.push('/dashboard');
+        } catch (err: any) {
+          setError(err.message || 'Erro no cadastro com Google');
+        }
+      });
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível iniciar o cadastro com Google.');
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
 
   return (
@@ -130,13 +153,11 @@ export default function RegisterPage() {
 
             {/* Social Login Buttons */}
             <div className="space-y-3">
-              <Button 
-                variant="social" 
+              <Button
+                variant="social"
                 type="button"
-                onClick={() => {
-                  // TODO: Implementar Google OAuth
-                  alert('🚧 Google Login será implementado com as credenciais OAuth');
-                }}
+                isLoading={isGoogleLoading}
+                onClick={handleGoogleSignup}
               >
                 <div className="flex items-center justify-center space-x-2">
                   <span>🔍</span>
