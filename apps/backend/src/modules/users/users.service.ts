@@ -86,18 +86,6 @@ export class UsersService {
     });
   }
 
-  // 🔒 KAN-17: define uma nova senha (hash) e marca o instante da troca —
-  // é esse timestamp que faz "nova senha invalida sessões anteriores"
-  // funcionar (ver JwtStrategy.validate). Usado tanto por reset-password
-  // (usuário esqueceu a senha) quanto, no futuro, por uma troca de senha
-  // autenticada.
-  async updatePassword(userId: string, passwordHash: string): Promise<void> {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash, passwordChangedAt: new Date() },
-    });
-  }
-
   async findAll() {
     return this.prisma.user.findMany({
       where: { isActive: true },

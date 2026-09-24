@@ -43,7 +43,7 @@ describe('POST /auth/login — inactive users get the same generic 401 (CR-02.1)
         { provide: ConfigService, useValue: { get: jest.fn() } },
         {
           provide: PasswordResetService,
-          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+          useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
       ],

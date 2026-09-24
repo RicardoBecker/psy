@@ -47,7 +47,7 @@ describe('POST /auth/register — public registration cannot mint privileged rol
         { provide: ConfigService, useValue: { get: jest.fn() } },
         {
           provide: PasswordResetService,
-          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+          useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
       ],

@@ -41,7 +41,7 @@ describe('POST /auth/logout — encerra a sessão de verdade (CR-05.4)', () => {
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
         {
           provide: PasswordResetService,
-          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+          useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
       ],
@@ -112,7 +112,7 @@ describe('Token forjado não libera nada (CR-05.4)', () => {
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
         {
           provide: PasswordResetService,
-          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+          useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
       ],

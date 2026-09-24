@@ -115,13 +115,19 @@ export class AuthService {
   // BadRequestException genérica — não diferenciamos os três casos na
   // resposta (evita dar pistas sobre o estado interno do token a quem
   // estiver testando valores).
+  //
+  // 🔒 Code review PR #19 (KAN-156, P2): o hash é calculado AQUI, antes de
+  // consumeTokenAndUpdatePassword — bcrypt não toca o banco, então não
+  // precisa (nem deve) rodar dentro da transação que marca o token usado
+  // e grava a senha; só o que precisa ser atômico é a escrita.
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    const consumed = await this.passwordResetService.consumeToken(token);
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const consumed = await this.passwordResetService.consumeTokenAndUpdatePassword(
+      token,
+      passwordHash,
+    );
     if (!consumed) {
       throw new BadRequestException('Link inválido ou expirado.');
     }
-
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-    await this.usersService.updatePassword(consumed.userId, passwordHash);
   }
 }

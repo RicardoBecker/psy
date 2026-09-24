@@ -18,18 +18,16 @@ import { UsersService } from '../users/users.service';
 // mesma resposta genérica.
 describe('POST /auth/reset-password — token válido troca a senha (KAN-17)', () => {
   let app: INestApplication;
-  let usersService: { updatePassword: jest.Mock };
-  let passwordResetService: { consumeToken: jest.Mock };
+  let passwordResetService: { consumeTokenAndUpdatePassword: jest.Mock };
 
   beforeAll(async () => {
-    usersService = { updatePassword: jest.fn() };
-    passwordResetService = { consumeToken: jest.fn() };
+    passwordResetService = { consumeTokenAndUpdatePassword: jest.fn() };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
         AuthService,
-        { provide: UsersService, useValue: usersService },
+        { provide: UsersService, useValue: {} },
         { provide: JwtService, useValue: { sign: jest.fn() } },
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
@@ -52,7 +50,7 @@ describe('POST /auth/reset-password — token válido troca a senha (KAN-17)', (
   });
 
   it('valid token: 201, generic success body, no session cookie (this is not a login)', async () => {
-    passwordResetService.consumeToken.mockResolvedValue({ userId: 'user-1' });
+    passwordResetService.consumeTokenAndUpdatePassword.mockResolvedValue({ userId: 'user-1' });
 
     const res = await request(app.getHttpServer())
       .post('/auth/reset-password')
@@ -61,11 +59,17 @@ describe('POST /auth/reset-password — token válido troca a senha (KAN-17)', (
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ success: true });
     expect(res.headers['set-cookie']).toBeUndefined();
-    expect(usersService.updatePassword).toHaveBeenCalledWith('user-1', expect.any(String));
+    // 🔒 Code review PR #19 (KAN-156, P2): hash calculado ANTES de chamar
+    // o service, que agora marca o token usado E grava a senha juntos
+    // (atomicidade) — não há mais uma chamada separada a updatePassword.
+    expect(passwordResetService.consumeTokenAndUpdatePassword).toHaveBeenCalledWith(
+      'token-valido',
+      expect.any(String),
+    );
   });
 
-  it('invalid/expired/already-used token: 400 with a generic message, password never touched', async () => {
-    passwordResetService.consumeToken.mockResolvedValue(null);
+  it('invalid/expired/already-used token: 400 with a generic message', async () => {
+    passwordResetService.consumeTokenAndUpdatePassword.mockResolvedValue(null);
 
     const res = await request(app.getHttpServer())
       .post('/auth/reset-password')
@@ -73,6 +77,5 @@ describe('POST /auth/reset-password — token válido troca a senha (KAN-17)', (
 
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('Link inválido ou expirado.');
-    expect(usersService.updatePassword).not.toHaveBeenCalled();
   });
 });

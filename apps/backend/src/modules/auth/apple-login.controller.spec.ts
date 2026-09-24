@@ -59,7 +59,7 @@ describe('GET /auth/apple/start + POST /auth/apple — handshake state/nonce (KA
         { provide: ConfigService, useValue: { get: jest.fn() } },
         {
           provide: PasswordResetService,
-          useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() },
+          useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
         { provide: UsersService, useValue: usersService },
