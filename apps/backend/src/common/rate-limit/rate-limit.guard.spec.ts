@@ -112,4 +112,30 @@ describe('AuthRateLimitGuard — IP AND identity limits, standardized 429 (KAN-1
       expect.arrayContaining([{ route: '/auth/login', reason: 'identity', count: 1 }]),
     );
   });
+
+  // 🔒 Code review PR #20 (KAN-159, P1): uma requisição já bloqueada por IP
+  // não pode continuar criando/incrementando chaves de identidade — senão
+  // um atacante já bloqueado por IP consegue crescer o store indefinidamente
+  // só trocando o e-mail do corpo a cada tentativa.
+  it('does not touch the identity store once the IP is already blocked (KAN-159, P1)', () => {
+    const hitSpy = jest.spyOn(store, 'hit');
+    const ip = '1.1.1.1';
+
+    for (let i = 0; i < 10; i++) {
+      guard.canActivate(makeContext({ ip, route: { path: '/auth/login' }, body: { email: `pessoa-${i}@example.com` } }));
+    }
+    hitSpy.mockClear();
+
+    // IP já no limite — cada tentativa seguinte traz um e-mail NUNCA visto.
+    for (let i = 10; i < 15; i++) {
+      const req = { ip, route: { path: '/auth/login' }, body: { email: `pessoa-${i}@example.com` } };
+      expect(() => guard.canActivate(makeContext(req))).toThrow(HttpException);
+    }
+
+    // toda chamada a store.hit() nessas 5 tentativas foi só a do IP —
+    // nunca chegou a montar/tocar a chave `id:...` para os e-mails novos.
+    const idHits = hitSpy.mock.calls.filter(([key]) => (key as string).startsWith('id:'));
+    expect(idHits).toHaveLength(0);
+    expect(hitSpy).toHaveBeenCalledTimes(5); // só o hit de IP, uma vez por tentativa
+  });
 });

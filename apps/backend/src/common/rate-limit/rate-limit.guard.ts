@@ -29,18 +29,34 @@ export class AuthRateLimitGuard implements CanActivate {
     const ip = req.ip ?? 'unknown';
 
     const byIp = this.store.hit(`ip:${route}:${ip}`, rule.limit, rule.windowMs);
+    if (byIp.blocked) {
+      this.blockAndThrow(route, 'ip', byIp.retryAfterSeconds, ip, res);
+    }
 
+    // 🔒 Code review PR #20 (KAN-159, P1): só toca o store de identidade
+    // quando o IP NÃO bloqueou — uma requisição já rejeitada por IP não
+    // precisa (e não deve) criar/incrementar mais uma chave no store por
+    // uma identidade que pode ser arbitrária e sempre diferente (tráfego
+    // anônimo forjando um e-mail novo a cada tentativa).
     const identity = this.extractIdentity(req);
-    const identityLimit = Math.max(1, Math.floor(rule.limit / 2));
-    const byIdentity = identity
-      ? this.store.hit(`id:${route}:${identity}`, identityLimit, rule.windowMs)
-      : { blocked: false, retryAfterSeconds: 0 };
+    if (identity) {
+      const identityLimit = Math.max(1, Math.floor(rule.limit / 2));
+      const byIdentity = this.store.hit(`id:${route}:${identity}`, identityLimit, rule.windowMs);
+      if (byIdentity.blocked) {
+        this.blockAndThrow(route, 'identity', byIdentity.retryAfterSeconds, ip, res);
+      }
+    }
 
-    if (!byIp.blocked && !byIdentity.blocked) return true;
+    return true;
+  }
 
-    const reason: 'ip' | 'identity' = byIdentity.blocked ? 'identity' : 'ip';
-    const retryAfterSeconds = Math.max(byIp.retryAfterSeconds, byIdentity.retryAfterSeconds);
-
+  private blockAndThrow(
+    route: string,
+    reason: 'ip' | 'identity',
+    retryAfterSeconds: number,
+    ip: string,
+    res: Response,
+  ): never {
     this.metrics.recordBlock(route, reason);
     // 🔒 Nunca loga o e-mail/identidade em si — só que uma tentativa foi
     // bloqueada, por qual dimensão e de onde (CR-02.1: "registrar sem dados

@@ -36,6 +36,49 @@ abuso (enumeração de contas, spam de e-mail).
   `limite × nº de instâncias`) — se o projeto crescer para múltiplas
   instâncias, trocar `RateLimitStore` por um backend compartilhado (Redis)
   é o próximo passo natural.
+- **Cardinalidade limitada (code review PR #20, KAN-159, P1)**: o Map tem
+  no máximo 10.000 entradas — ao atingir o limite, a entrada mais antiga é
+  descartada (eviction FIFO) antes de qualquer inserção nova. Tráfego
+  anônimo forjando uma identidade sempre diferente (ex.: e-mail novo a
+  cada tentativa) não consegue crescer o store indefinidamente. Uma
+  varredura periódica (a cada 1 minuto, `RateLimitStore.onModuleInit`)
+  remove entradas já expiradas, mantendo o store enxuto sob operação
+  normal, não só no limite de capacidade. O guard também para de tocar o
+  store de identidade assim que o IP já bloqueou a requisição — uma
+  tentativa já rejeitada por IP não cria mais uma chave de identidade.
+
+## 🌐 Confiança em proxy reverso (`req.ip`, code review PR #20, KAN-159, P2)
+
+`req.ip` é a chave usada para o limite por IP. Sem `trust proxy`
+configurado no Express, duas topologias de produção quebram essa premissa
+de formas opostas — ver `apps/backend/src/common/trust-proxy.config.ts`
+para o racional completo:
+
+- **Conexão direta (padrão atual deste projeto — devOps/docker-compose.yml
+  publica a porta do backend diretamente, sem proxy na frente)**: o padrão
+  do Express (`trust proxy` desligado) já é seguro — `X-Forwarded-For` é
+  ignorado, `req.ip` é sempre o socket TCP real. **Nenhuma configuração
+  necessária.**
+- **Atrás de um proxy/ingress** (nginx, ALB, Cloudflare, etc.) **sem
+  configurar isso**: todo tráfego aparenta vir do IP do proxy — o rate
+  limit vira "todo mundo compartilha um limite" (bloqueio coletivo, não
+  bypass).
+- **Atrás de proxy com isso mal configurado** (confiando em mais saltos do
+  que existem de verdade): um cliente malicioso pode forjar
+  `X-Forwarded-For` e ser tratado como se viesse de outro IP, esvaziando o
+  rate limit por IP.
+
+Se um proxy for introduzido na topologia de produção, defina
+`TRUST_PROXY_HOPS` com o número de saltos de proxy confiáveis entre o
+cliente e este backend (normalmente `1` para um único load
+balancer/ingress na frente):
+
+```env
+TRUST_PROXY_HOPS=1
+```
+
+Valores não-numéricos (`loopback`, um IP/CIDR específico) também são
+aceitos — repassados como estão para o Express, que sabe interpretá-los.
 
 ## 📊 Métricas (KAN-80)
 
