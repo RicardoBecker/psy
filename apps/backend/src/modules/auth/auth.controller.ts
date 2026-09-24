@@ -12,13 +12,18 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { AppleLoginDto } from './dto/apple-login.dto';
 import { SkipCsrf } from '../../common/skip-csrf.decorator';
 import { setSessionCookies, clearSessionCookies } from '../../common/session-cookie';
+import { AuthRateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
+import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import {
   setAppleChallengeCookie,
   clearAppleChallengeCookie,
   readAppleChallengeCookie,
 } from '../../common/apple-auth-challenge';
 
+const ONE_MINUTE_MS = 60_000;
+
 @Controller('auth')
+@UseGuards(AuthRateLimitGuard)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -31,6 +36,7 @@ export class AuthController {
   // (o risco é "logar a vítima numa conta do atacante", ameaça distinta
   // e de impacto menor do que CSRF sobre sessão já autenticada).
   @SkipCsrf()
+  @RateLimit({ limit: 10, windowMs: ONE_MINUTE_MS })
   @Post('register')
   async register(
     @Body() registerDto: RegisterDto,
@@ -42,6 +48,7 @@ export class AuthController {
   }
 
   @SkipCsrf()
+  @RateLimit({ limit: 10, windowMs: ONE_MINUTE_MS })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   async login(
@@ -69,6 +76,7 @@ export class AuthController {
   // AuthService.loginWithGoogle verifica assinatura/issuer/audience/
   // expiração antes de confiar em qualquer claim dele.
   @SkipCsrf()
+  @RateLimit({ limit: 10, windowMs: ONE_MINUTE_MS })
   @Post('google')
   async googleLogin(
     @Body() dto: SocialLoginDto,
@@ -99,6 +107,7 @@ export class AuthController {
   // para provar que este token é resposta à tentativa que ESTE navegador
   // iniciou, não um replay.
   @SkipCsrf()
+  @RateLimit({ limit: 10, windowMs: ONE_MINUTE_MS })
   @Post('apple')
   async appleLogin(
     @Body() dto: AppleLoginDto,
@@ -119,6 +128,7 @@ export class AuthController {
   // solicita isso não tem sessão nenhuma (nem própria, nem de vítima) para
   // um atacante abusar.
   @SkipCsrf()
+  @RateLimit({ limit: 5, windowMs: ONE_MINUTE_MS })
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.authService.forgotPassword(dto.email);
@@ -129,6 +139,7 @@ export class AuthController {
   // acesso à caixa de entrada do e-mail o recebeu) — não uma sessão, por
   // isso isento de CSRF como os demais endpoints de entrada.
   @SkipCsrf()
+  @RateLimit({ limit: 10, windowMs: ONE_MINUTE_MS })
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto.token, dto.newPassword);

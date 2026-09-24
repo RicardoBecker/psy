@@ -10,6 +10,9 @@ import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { PasswordResetService } from './password-reset.service';
 import { MailerService } from '../../common/mailer/mailer.service';
+import { RateLimitStore } from '../../common/rate-limit/rate-limit.store';
+import { RateLimitMetricsService } from '../../common/rate-limit/rate-limit-metrics.service';
+import { AuthRateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
 import { AppleChallengeService } from './apple-challenge.service';
 import { UsersService } from '../users/users.service';
 
@@ -35,6 +38,9 @@ describe('POST /auth/reset-password — token válido troca a senha (KAN-17)', (
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PasswordResetService, useValue: passwordResetService },
         { provide: MailerService, useValue: { send: jest.fn() } },
+        RateLimitStore,
+        RateLimitMetricsService,
+        AuthRateLimitGuard,
         AppleChallengeService,
       ],
     }).compile();
