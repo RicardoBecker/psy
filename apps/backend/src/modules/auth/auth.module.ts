@@ -12,6 +12,7 @@ import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
 import { PasswordResetService } from './password-reset.service';
 import { MailerModule } from '../../common/mailer/mailer.module';
+import { AppleChallengeService } from './apple-challenge.service';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { MailerModule } from '../../common/mailer/mailer.module';
     AppleAuthProvider,
     SocialAuthService,
     PasswordResetService,
+    AppleChallengeService,
   ],
   exports: [AuthService],
 })
