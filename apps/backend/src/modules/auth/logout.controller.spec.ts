@@ -10,6 +10,8 @@ import { AuthService } from './auth.service';
 import { LocalStrategy } from './strategies/local.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersService } from '../users/users.service';
+import { GoogleAuthProvider } from './providers/google.provider';
+import { SocialAuthService } from './social-auth.service';
 import { SESSION_COOKIE_NAME, CSRF_COOKIE_NAME } from '../../common/session-cookie';
 
 describe('POST /auth/logout — encerra a sessão de verdade (CR-05.4)', () => {
@@ -29,6 +31,8 @@ describe('POST /auth/logout — encerra a sessão de verdade (CR-05.4)', () => {
         JwtStrategy,
         { provide: UsersService, useValue: usersService },
         { provide: ConfigService, useValue: { get: () => 'test-secret' } },
+        { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
       ],
     }).compile();
 
@@ -91,6 +95,8 @@ describe('Token forjado não libera nada (CR-05.4)', () => {
         JwtStrategy,
         { provide: UsersService, useValue: usersService },
         { provide: ConfigService, useValue: { get: () => 'segredo-real-do-servidor' } },
+        { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
       ],
     }).compile();
 

@@ -8,6 +8,8 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { LocalStrategy } from './strategies/local.strategy';
 import { UsersService } from '../users/users.service';
+import { GoogleAuthProvider } from './providers/google.provider';
+import { SocialAuthService } from './social-auth.service';
 
 describe('POST /auth/login — inactive users get the same generic 401 (CR-02.1)', () => {
   let app: INestApplication;
@@ -29,6 +31,8 @@ describe('POST /auth/login — inactive users get the same generic 401 (CR-02.1)
         LocalStrategy,
         { provide: UsersService, useValue: usersService },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },
+        { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
       ],
     }).compile();
 

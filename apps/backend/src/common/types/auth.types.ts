@@ -1,6 +1,6 @@
 // Re-export Prisma enums para usar em toda aplicação  
-import { Role, AgeGroup, ConsentStatus, ConsentRecordStatus } from '@prisma/client';
-export { Role, AgeGroup, ConsentStatus, ConsentRecordStatus };
+import { Role, AgeGroup, ConsentStatus, ConsentRecordStatus, AuthProvider } from '@prisma/client';
+export { Role, AgeGroup, ConsentStatus, ConsentRecordStatus, AuthProvider };
 
 // Tipos para JWT payload
 export interface JwtPayload {

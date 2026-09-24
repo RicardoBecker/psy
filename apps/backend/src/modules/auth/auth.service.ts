@@ -3,6 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from '../../common/types/auth.types';
+import { GoogleAuthProvider } from './providers/google.provider';
+import { SocialAuthService } from './social-auth.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -10,6 +12,8 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private googleAuthProvider: GoogleAuthProvider,
+    private socialAuthService: SocialAuthService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -33,11 +37,13 @@ export class AuthService {
   }
 
   // 🔒 Retorna null (→ 401 genérico no LocalStrategy) para senha errada,
-  // conta inexistente OU conta desativada — as três respostas externas são
-  // indistinguíveis de propósito, para não facilitar enumeração de contas.
+  // conta inexistente, conta SEM senha local (login-only social, KAN-15) OU
+  // conta desativada — as respostas externas são indistinguíveis de
+  // propósito, para não facilitar enumeração de contas nem revelar que uma
+  // conta só existe via login social.
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    if (!user || !user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
       return null;
     }
     if (!user.isActive) {
@@ -48,8 +54,8 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload: JwtPayload = { 
-      email: user.email, 
+    const payload: JwtPayload = {
+      email: user.email,
       sub: user.id,
       role: user.role,
       ageGroup: user.ageGroup,
@@ -58,5 +64,14 @@ export class AuthService {
       user,
       access_token: this.jwtService.sign(payload),
     };
+  }
+
+  // 🔍 KAN-15: verifica o ID token do Google (assinatura/issuer/audience/
+  // expiração) e resolve para um usuário local antes de emitir nossa
+  // própria sessão — a partir daqui é indistinguível de um login comum.
+  async loginWithGoogle(idToken: string) {
+    const profile = await this.googleAuthProvider.verify(idToken);
+    const user = await this.socialAuthService.resolveOrCreateUser(profile);
+    return this.login(user);
   }
 }

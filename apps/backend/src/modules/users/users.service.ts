@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/com
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { Role, AgeGroup, calculateAgeGroup } from '../../common/types/auth.types';
+import { normalizeEmail } from '../../common/email.util';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -11,7 +12,8 @@ export class UsersService {
   // 🔒 Cadastro público: sempre cria PATIENT. Roles privilegiadas só via
   // fluxo administrativo (AdminUsersService.createUser), nunca por aqui.
   async create(createUserDto: CreateUserDto) {
-    const { password, name, email, birthDate: birthDateInput } = createUserDto;
+    const { password, name, birthDate: birthDateInput } = createUserDto;
+    const email = normalizeEmail(createUserDto.email);
 
     const passwordHash = await bcrypt.hash(password, 10);
 
@@ -50,7 +52,7 @@ export class UsersService {
 
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizeEmail(email) },
       select: {
         id: true,
         name: true,

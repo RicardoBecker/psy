@@ -31,11 +31,22 @@ enum ConsentRecordStatus {
   REVOKED
 }
 
+// 🔒 KAN-15: provedores de identidade federada suportados. Cada valor novo
+// (ex.: APPLE em KAN-16) chega numa migration própria — não reescrevemos
+// esta migration depois de aplicada.
+enum AuthProvider {
+  GOOGLE
+}
+
 model User {
   id           String    @id @default(uuid())
   name         String
   email        String    @unique
-  passwordHash String    @map("password_hash")
+  // 🔒 KAN-15: opcional porque contas criadas via login social (ver
+  // SocialIdentity) nunca definem senha local — AuthService.validateUser
+  // trata passwordHash nulo como "login por senha indisponível", nunca
+  // como senha vazia/qualquer.
+  passwordHash String?   @map("password_hash")
   role         Role      @default(PATIENT)
   ageGroup     AgeGroup  @default(ADULT)
   birthDate    DateTime?
@@ -54,8 +65,28 @@ model User {
   guardianConsentRecords ConsentRecord[]        @relation("GuardianConsent")
   patientLinks           PatientPsychologistLink[] @relation("PatientLinks")
   psychologistLinks      PatientPsychologistLink[] @relation("PsychologistLinks")
+  socialIdentities       SocialIdentity[]
 
   @@map("users")
+}
+
+// 🔒 KAN-15: vínculo entre um User e uma identidade num provedor externo.
+// A dupla (provider, providerUserId) é o `sub` verificado no ID token — é
+// a única coisa em que confiamos para reconhecer a conta num login
+// seguinte; nunca o e-mail sozinho (e-mail pode ser trocado no provedor).
+model SocialIdentity {
+  id             String       @id @default(uuid())
+  provider       AuthProvider
+  providerUserId String       @map("provider_user_id")
+  email          String
+  userId         String       @map("user_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("social_identities")
 }
 
 model GuardianRelationship {

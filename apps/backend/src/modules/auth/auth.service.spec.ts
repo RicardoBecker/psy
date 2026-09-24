@@ -3,6 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
+import { GoogleAuthProvider } from './providers/google.provider';
+import { SocialAuthService } from './social-auth.service';
 
 describe('AuthService.validateUser — inactive users never authenticate (CR-02.1)', () => {
   let service: AuthService;
@@ -23,6 +25,8 @@ describe('AuthService.validateUser — inactive users never authenticate (CR-02.
         AuthService,
         { provide: UsersService, useValue: usersService },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },
+        { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
       ],
     }).compile();
 
@@ -77,6 +81,23 @@ describe('AuthService.validateUser — inactive users never authenticate (CR-02.
     usersService.findByEmail.mockResolvedValue(null);
 
     const result = await service.validateUser('naoexiste@example.com', PASSWORD);
+
+    expect(result).toBeNull();
+  });
+
+  // 🔒 KAN-15: contas criadas via login social (User.passwordHash nulo)
+  // não podem ser "adivinhadas" por senha — bcrypt.compare nunca chega a
+  // rodar contra um hash inexistente.
+  it('returns null for an account created via social login (no local password set)', async () => {
+    usersService.findByEmail.mockResolvedValue({
+      id: 'user-social',
+      email: 'social@example.com',
+      passwordHash: null,
+      role: 'PATIENT',
+      isActive: true,
+    });
+
+    const result = await service.validateUser('social@example.com', 'qualquerSenha123');
 
     expect(result).toBeNull();
   });
