@@ -14,6 +14,7 @@ import { UsersService } from '../users/users.service';
 import { RateLimitStore } from '../../common/rate-limit/rate-limit.store';
 import { RateLimitMetricsService } from '../../common/rate-limit/rate-limit-metrics.service';
 import { AuthRateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
+import { AppleChallengeService } from './apple-challenge.service';
 
 async function buildApp(): Promise<INestApplication> {
   const moduleRef: TestingModule = await Test.createTestingModule({
@@ -39,8 +40,12 @@ async function buildApp(): Promise<INestApplication> {
       { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
       { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
       { provide: ConfigService, useValue: { get: () => 'http://localhost:3000' } },
-      { provide: PasswordResetService, useValue: { createTokenForUser: jest.fn(), consumeToken: jest.fn() } },
+      {
+        provide: PasswordResetService,
+        useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
+      },
       { provide: MailerService, useValue: { send: jest.fn() } },
+      AppleChallengeService,
       RateLimitStore,
       RateLimitMetricsService,
       AuthRateLimitGuard,
