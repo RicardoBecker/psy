@@ -4,6 +4,7 @@ import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from '../../common/types/auth.types';
 import { GoogleAuthProvider } from './providers/google.provider';
+import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
 import * as bcrypt from 'bcrypt';
 
@@ -13,6 +14,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private googleAuthProvider: GoogleAuthProvider,
+    private appleAuthProvider: AppleAuthProvider,
     private socialAuthService: SocialAuthService,
   ) {}
 
@@ -71,6 +73,16 @@ export class AuthService {
   // própria sessão — a partir daqui é indistinguível de um login comum.
   async loginWithGoogle(idToken: string) {
     const profile = await this.googleAuthProvider.verify(idToken);
+    const user = await this.socialAuthService.resolveOrCreateUser(profile);
+    return this.login(user);
+  }
+
+  // 🍎 KAN-16: mesmo princípio do Google — verifica o ID token da Apple
+  // antes de resolver/criar o usuário local. `expectedNonce` (Code review
+  // PR #18, KAN-158, P1) já foi extraído e validado quanto ao `state` pelo
+  // AppleChallengeService no controller.
+  async loginWithApple(idToken: string, expectedNonce: string) {
+    const profile = await this.appleAuthProvider.verify(idToken, expectedNonce);
     const user = await this.socialAuthService.resolveOrCreateUser(profile);
     return this.login(user);
   }

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '../../providers/auth-provider';
 import { Button, Input, Alert } from '../../components/ui';
 import { promptGoogleSignIn } from '../../lib/google-identity';
+import { appleSignIn, isAppleSignInCancellation } from '../../lib/apple-identity';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -16,8 +17,9 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
 
-  const { register, googleLogin, isLoading } = useAuth();
+  const { register, googleLogin, appleLogin, isLoading } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,6 +75,24 @@ export default function RegisterPage() {
       setError(err.message || 'Não foi possível iniciar o cadastro com Google.');
     } finally {
       setIsGoogleLoading(false);
+    }
+  };
+
+  // 🔍 Code review PR #18 (KAN-158, P2): mesmo fluxo real da tela de login
+  // — o botão não pode terminar em alert() de placeholder em produção.
+  const handleAppleSignup = async () => {
+    setError('');
+    setIsAppleLoading(true);
+    try {
+      const { idToken, state } = await appleSignIn();
+      await appleLogin(idToken, state);
+      router.push('/dashboard');
+    } catch (err: any) {
+      if (!isAppleSignInCancellation(err)) {
+        setError(err.message || 'Erro no cadastro com Apple');
+      }
+    } finally {
+      setIsAppleLoading(false);
     }
   };
 
@@ -165,13 +185,11 @@ export default function RegisterPage() {
                 </div>
               </Button>
 
-              <Button 
-                variant="social" 
+              <Button
+                variant="social"
                 type="button"
-                onClick={() => {
-                  // TODO: Implementar Apple Sign In
-                  alert('🚧 Apple Login será implementado com as credenciais de desenvolvedor');
-                }}
+                isLoading={isAppleLoading}
+                onClick={handleAppleSignup}
               >
                 <div className="flex items-center justify-center space-x-2">
                   <span>🍎</span>

@@ -8,7 +8,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { UsersModule } from '../users/users.module';
 import { GoogleAuthProvider } from './providers/google.provider';
+import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
+import { AppleChallengeService } from './apple-challenge.service';
 
 @Module({
   imports: [
@@ -24,7 +26,15 @@ import { SocialAuthService } from './social-auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy, GoogleAuthProvider, SocialAuthService],
+  providers: [
+    AuthService,
+    LocalStrategy,
+    JwtStrategy,
+    GoogleAuthProvider,
+    AppleAuthProvider,
+    SocialAuthService,
+    AppleChallengeService,
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}

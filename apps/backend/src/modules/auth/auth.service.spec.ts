@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { GoogleAuthProvider } from './providers/google.provider';
+import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
 
 describe('AuthService.validateUser — inactive users never authenticate (CR-02.1)', () => {
@@ -26,6 +27,7 @@ describe('AuthService.validateUser — inactive users never authenticate (CR-02.
         { provide: UsersService, useValue: usersService },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
       ],
     }).compile();

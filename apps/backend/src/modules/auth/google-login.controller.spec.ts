@@ -5,7 +5,9 @@ import * as request from 'supertest';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { SocialAuthService } from './social-auth.service';
+import { AppleChallengeService } from './apple-challenge.service';
 import { GoogleAuthProvider } from './providers/google.provider';
+import { AppleAuthProvider } from './providers/apple.provider';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthProvider } from '../../common/types/auth.types';
@@ -48,6 +50,8 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
         AuthService,
         SocialAuthService,
         { provide: GoogleAuthProvider, useValue: googleAuthProvider },
+        { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
+        AppleChallengeService,
         { provide: UsersService, useValue: usersService },
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },

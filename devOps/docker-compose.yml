@@ -12,6 +12,7 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/emotional_app
       - JWT_SECRET=${JWT_SECRET:-changeme_in_production_please}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - APPLE_CLIENT_ID=${APPLE_CLIENT_ID:-}
       - PORT=3001
       - NODE_ENV=development
     volumes:
@@ -41,6 +42,7 @@ services:
       # NEXT_PUBLIC_* precisa existir em build/runtime do Next — não tem
       # segredo aqui (é o mesmo Client ID público usado no navegador).
       - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+      - NEXT_PUBLIC_APPLE_CLIENT_ID=${NEXT_PUBLIC_APPLE_CLIENT_ID:-}
     volumes:
       - ../apps/frontend:/app
       - frontend_node_modules:/app/node_modules

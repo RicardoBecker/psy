@@ -31,11 +31,12 @@ enum ConsentRecordStatus {
   REVOKED
 }
 
-// 🔒 KAN-15: provedores de identidade federada suportados. Cada valor novo
-// (ex.: APPLE em KAN-16) chega numa migration própria — não reescrevemos
-// esta migration depois de aplicada.
+// 🔒 KAN-15/KAN-16: provedores de identidade federada suportados. Cada
+// valor novo chega numa migration própria — não reescrevemos uma migration
+// depois de aplicada.
 enum AuthProvider {
   GOOGLE
+  APPLE
 }
 
 model User {
