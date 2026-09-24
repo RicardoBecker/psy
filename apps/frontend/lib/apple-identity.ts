@@ -3,11 +3,19 @@
 // lib/google-identity.ts — só usamos isto para obter o `identityToken`
 // assinado pela Apple; o backend re-verifica do zero
 // (ver apps/backend/.../providers/apple.provider.ts).
+//
+// 🔒 Code review PR #18 (KAN-158, P1): antes de abrir o popup, buscamos um
+// desafio (state/nonce) do backend — gerado e guardado lá num cookie
+// HttpOnly de curta duração — e repassamos os dois para o SDK da Apple. O
+// backend valida ambos na volta, provando que a resposta é desta tentativa
+// (não um token Apple válido obtido em outro contexto/replay).
+import { authApi } from './api';
+
 const APPLE_JS_SRC =
   'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
 
 interface AppleAuthorizationResponse {
-  authorization: { id_token: string };
+  authorization: { id_token: string; state?: string };
 }
 
 interface AppleIdApi {
@@ -16,6 +24,8 @@ interface AppleIdApi {
     scope: string;
     redirectURI: string;
     usePopup: boolean;
+    nonce: string;
+    state: string;
   }): void;
   signIn(): Promise<AppleAuthorizationResponse>;
 }
@@ -51,15 +61,18 @@ function loadAppleScript(): Promise<void> {
   return scriptLoadingPromise;
 }
 
-// 🚪 Ponto de entrada único: inicializa o SDK (se preciso) e abre o popup de
-// login. Resolve com o identityToken em caso de sucesso; ao usuário fechar o
-// popup, a Apple rejeita a Promise com `error: 'popup_closed_by_user'` — não
-// é um erro de verdade (ver login/page.tsx: KAN-76 "tratar cancelamento").
-export async function appleSignIn(): Promise<string> {
+// 🚪 Ponto de entrada único: busca o desafio, inicializa o SDK (se preciso)
+// e abre o popup de login. Resolve com {idToken, state} em caso de
+// sucesso; ao usuário fechar o popup, a Apple rejeita a Promise com
+// `error: 'popup_closed_by_user'` — não é um erro de verdade (ver
+// login/page.tsx: KAN-76 "tratar cancelamento").
+export async function appleSignIn(): Promise<{ idToken: string; state: string }> {
   const clientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID;
   if (!clientId) {
     throw new Error('Login com Apple não está disponível no momento.');
   }
+
+  const { state, nonce } = await authApi.startAppleAuth();
 
   await loadAppleScript();
 
@@ -68,10 +81,15 @@ export async function appleSignIn(): Promise<string> {
     scope: 'email',
     redirectURI: window.location.origin,
     usePopup: true,
+    nonce,
+    state,
   });
 
   const response = await window.AppleID!.auth.signIn();
-  return response.authorization.id_token;
+  // A Apple ecoa o `state` na resposta de autorização; se por algum motivo
+  // não vier, usamos o que geramos localmente — o backend é quem faz a
+  // comparação de verdade contra o cookie assinado.
+  return { idToken: response.authorization.id_token, state: response.authorization.state ?? state };
 }
 
 // ✋ A Apple sinaliza cancelamento do usuário com esse código de erro

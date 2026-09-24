@@ -11,6 +11,7 @@ import { UsersService } from '../users/users.service';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { SocialAuthService } from './social-auth.service';
+import { AppleChallengeService } from './apple-challenge.service';
 
 describe('POST /auth/login — inactive users get the same generic 401 (CR-02.1)', () => {
   let app: INestApplication;
@@ -34,6 +35,7 @@ describe('POST /auth/login — inactive users get the same generic 401 (CR-02.1)
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
+        AppleChallengeService,
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
       ],
     }).compile();

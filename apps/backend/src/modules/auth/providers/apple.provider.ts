@@ -24,7 +24,15 @@ export class AppleAuthProvider {
     this.jwks = createRemoteJWKSet(new URL(APPLE_JWKS_URL));
   }
 
-  async verify(idToken: string): Promise<VerifiedSocialProfile> {
+  // 🔒 Code review PR #18 (KAN-158, P1): `expectedNonce` vem de um desafio
+  // que NÓS geramos e guardamos num cookie HttpOnly de curta duração (ver
+  // AppleChallengeService) antes do popup da Apple abrir. Sem essa
+  // checagem, um ID token Apple válido obtido FORA da tentativa atual
+  // (phishing, MITM, token vazado) funcionaria como bearer credential
+  // aqui — o claim `nonce` é o que prova que ESTE token é resposta a ESTE
+  // desafio, não um replay. Ver
+  // https://developer.apple.com/documentation/signinwithapple/verifying-a-user
+  async verify(idToken: string, expectedNonce: string): Promise<VerifiedSocialProfile> {
     if (!this.clientId) {
       // 🔒 Sem client id não há audience para validar contra — aceitar o
       // token nesse estado equivaleria a pular a verificação.
@@ -45,6 +53,19 @@ export class AppleAuthProvider {
     const sub = typeof payload.sub === 'string' ? payload.sub : undefined;
     const email = typeof payload.email === 'string' ? payload.email : undefined;
     if (!sub || !email) {
+      throw new UnauthorizedException('Token da Apple inválido ou expirado.');
+    }
+
+    // 🔒 Comparação estrita: nonce ausente/vazio no token OU no desafio
+    // esperado, ou os dois divergentes, é sempre rejeitado — nunca "aceita
+    // se os dois estiverem vazios" (uma string vazia nunca é um nonce
+    // válido, então nunca deve "casar" com nada).
+    if (
+      !expectedNonce ||
+      typeof payload.nonce !== 'string' ||
+      !payload.nonce ||
+      payload.nonce !== expectedNonce
+    ) {
       throw new UnauthorizedException('Token da Apple inválido ou expirado.');
     }
 

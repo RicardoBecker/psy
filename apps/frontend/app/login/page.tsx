@@ -76,8 +76,8 @@ export default function LoginPage() {
     setError('');
     setIsAppleLoading(true);
     try {
-      const idToken = await appleSignIn();
-      await appleLogin(idToken);
+      const { idToken, state } = await appleSignIn();
+      await appleLogin(idToken, state);
       router.push('/dashboard');
     } catch (err: any) {
       if (!isAppleSignInCancellation(err)) {

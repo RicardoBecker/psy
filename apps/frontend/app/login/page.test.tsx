@@ -112,18 +112,20 @@ describe('LoginPage — Apple Sign-In (KAN-16/KAN-76)', () => {
   });
 
   it('successful credential: logs in and navigates to /dashboard', async () => {
-    appleSignInMock.mockResolvedValue('id-token-valido-da-apple');
+    appleSignInMock.mockResolvedValue({ idToken: 'id-token-valido-da-apple', state: 'state-do-desafio' });
     appleLoginMock.mockResolvedValue(undefined);
 
     render(<LoginPage />);
     fireEvent.click(screen.getByText('Continuar com Apple'));
 
-    await waitFor(() => expect(appleLoginMock).toHaveBeenCalledWith('id-token-valido-da-apple'));
+    await waitFor(() =>
+      expect(appleLoginMock).toHaveBeenCalledWith('id-token-valido-da-apple', 'state-do-desafio'),
+    );
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/dashboard'));
   });
 
   it('backend rejects the token: shows the error, does not navigate', async () => {
-    appleSignInMock.mockResolvedValue('id-token-invalido');
+    appleSignInMock.mockResolvedValue({ idToken: 'id-token-invalido', state: 'state-do-desafio' });
     appleLoginMock.mockRejectedValue(new Error('Token da Apple inválido ou expirado.'));
 
     render(<LoginPage />);

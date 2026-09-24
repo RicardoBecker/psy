@@ -78,9 +78,11 @@ export class AuthService {
   }
 
   // 🍎 KAN-16: mesmo princípio do Google — verifica o ID token da Apple
-  // antes de resolver/criar o usuário local.
-  async loginWithApple(idToken: string) {
-    const profile = await this.appleAuthProvider.verify(idToken);
+  // antes de resolver/criar o usuário local. `expectedNonce` (Code review
+  // PR #18, KAN-158, P1) já foi extraído e validado quanto ao `state` pelo
+  // AppleChallengeService no controller.
+  async loginWithApple(idToken: string, expectedNonce: string) {
+    const profile = await this.appleAuthProvider.verify(idToken, expectedNonce);
     const user = await this.socialAuthService.resolveOrCreateUser(profile);
     return this.login(user);
   }
