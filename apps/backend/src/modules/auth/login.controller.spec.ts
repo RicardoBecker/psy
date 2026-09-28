@@ -10,6 +10,7 @@ import { LocalStrategy } from './strategies/local.strategy';
 import { UsersService } from '../users/users.service';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
+import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { SocialAuthService } from './social-auth.service';
 import { AppleChallengeService } from './apple-challenge.service';
 
@@ -35,6 +36,7 @@ describe('POST /auth/login — inactive users get the same generic 401 (CR-02.1)
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: AppleTokenExchangeService, useValue: { exchangeAndVerify: jest.fn().mockResolvedValue(undefined) } },
         AppleChallengeService,
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
       ],

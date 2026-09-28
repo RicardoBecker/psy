@@ -9,6 +9,7 @@ import { SocialAuthService } from './social-auth.service';
 import { AppleChallengeService } from './apple-challenge.service';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
+import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthProvider } from '../../common/types/auth.types';
@@ -20,6 +21,7 @@ import { AuthProvider } from '../../common/types/auth.types';
 describe('GET /auth/apple/start + POST /auth/apple — handshake state/nonce (KAN-16/KAN-158)', () => {
   let app: INestApplication;
   let appleAuthProvider: { verify: jest.Mock };
+  let appleTokenExchangeService: { exchangeAndVerify: jest.Mock };
   let usersService: {
     findById: jest.Mock;
     findByEmail: jest.Mock;
@@ -33,6 +35,12 @@ describe('GET /auth/apple/start + POST /auth/apple — handshake state/nonce (KA
 
   beforeAll(async () => {
     appleAuthProvider = { verify: jest.fn() };
+    // 🔒 KAN-158 (P2, re-review): por padrão a troca do authorization code
+    // é bem-sucedida — os testes que existiam antes desta correção
+    // continuam válidos (o code exchange é só mais uma checagem que, aqui,
+    // sempre passa). O finding específico é coberto pelo describe
+    // "authorization code exchange (KAN-158, P2)" abaixo.
+    appleTokenExchangeService = { exchangeAndVerify: jest.fn().mockResolvedValue(undefined) };
     usersService = {
       findById: jest.fn(),
       findByEmail: jest.fn(),
@@ -53,6 +61,7 @@ describe('GET /auth/apple/start + POST /auth/apple — handshake state/nonce (KA
         AppleChallengeService,
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: AppleAuthProvider, useValue: appleAuthProvider },
+        { provide: AppleTokenExchangeService, useValue: appleTokenExchangeService },
         { provide: UsersService, useValue: usersService },
         { provide: PrismaService, useValue: prisma },
       ],
@@ -111,7 +120,12 @@ describe('GET /auth/apple/start + POST /auth/apple — handshake state/nonce (KA
     const res = await request(app.getHttpServer())
       .post('/auth/apple')
       .set('Cookie', cookie)
-      .send({ token: 'id-token-valido-da-apple', state });
+      .send({
+        token: 'id-token-valido-da-apple',
+        state,
+        code: 'authorization-code-valido',
+        redirectUri: 'http://localhost:3000',
+      });
 
     expect(res.status).toBe(201);
     expect(res.body).not.toHaveProperty('access_token');
@@ -120,6 +134,15 @@ describe('GET /auth/apple/start + POST /auth/apple — handshake state/nonce (KA
     // 🔒 KAN-158 P1: o provider é chamado com o nonce extraído do desafio,
     // não um valor arbitrário do corpo da requisição.
     expect(appleAuthProvider.verify).toHaveBeenCalledWith('id-token-valido-da-apple', nonce);
+    // 🔒 KAN-158 (P2, re-review): o code é trocado com o `sub` já
+    // verificado do identityToken e o MESMO nonce do desafio — nunca um
+    // valor arbitrário do corpo.
+    expect(appleTokenExchangeService.exchangeAndVerify).toHaveBeenCalledWith({
+      code: 'authorization-code-valido',
+      redirectUri: 'http://localhost:3000',
+      expectedSub: 'apple-sub-1',
+      expectedNonce: nonce,
+    });
 
     const cookies = res.headers['set-cookie'] as unknown as string[];
     const sessionCookie = cookies.find((c) => c.startsWith('emotional_app_token='));
@@ -253,6 +276,76 @@ describe('GET /auth/apple/start + POST /auth/apple — handshake state/nonce (KA
       expect(failCookies.find((c) => c.startsWith('apple_auth_challenge='))).toMatch(
         /apple_auth_challenge=;/,
       );
+    });
+  });
+
+  // 🔒 KAN-158 (P2, re-review PR #18): antes desta correção, `code` não
+  // existia no fluxo — qualquer valor (ou a ausência dele) era
+  // silenciosamente ignorado e o login prosseguia só com o identityToken
+  // verificado localmente. Isso violava a doc oficial da Apple
+  // ("web apps must validate the authorization code using the Token
+  // validation endpoint" —
+  // https://developer.apple.com/documentation/signinwithapple/verifying-a-user).
+  // Estes testes provam que, agora, uma falha na troca do code (code
+  // inválido, expirado OU já usado — a própria Apple responde
+  // invalid_grant nos três casos) bloqueia o login mesmo com um
+  // identityToken válido e nonce correto.
+  describe('authorization code exchange (KAN-158, P2)', () => {
+    it('an invalid/expired/reused authorization code blocks login even with a valid identityToken', async () => {
+      const { state, nonce, cookie } = await startAppleAuth();
+      appleAuthProvider.verify.mockResolvedValue({
+        provider: AuthProvider.APPLE,
+        providerUserId: 'apple-sub-code-invalido',
+        email: 'pessoa@privaterelay.appleid.com',
+        emailVerified: true,
+      });
+      appleTokenExchangeService.exchangeAndVerify.mockRejectedValue(
+        new UnauthorizedException('Código de autorização da Apple inválido ou expirado.'),
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/apple')
+        .set('Cookie', cookie)
+        .send({
+          token: 'id-token-valido-da-apple',
+          state,
+          code: 'code-invalido-expirado-ou-reutilizado',
+          redirectUri: 'http://localhost:3000',
+        });
+
+      expect(res.status).toBe(401);
+      expect(res.body).not.toHaveProperty('user');
+      expect(appleTokenExchangeService.exchangeAndVerify).toHaveBeenCalledWith({
+        code: 'code-invalido-expirado-ou-reutilizado',
+        redirectUri: 'http://localhost:3000',
+        expectedSub: 'apple-sub-code-invalido',
+        expectedNonce: nonce,
+      });
+      // Nenhuma sessão emitida — a falha na troca do code barra o login
+      // por completo, mesmo com identityToken + state/nonce corretos.
+      const cookies = (res.headers['set-cookie'] as unknown as string[]) ?? [];
+      expect(cookies.find((c) => c.startsWith('emotional_app_token='))).toBeUndefined();
+      expect(prisma.socialIdentity.create).not.toHaveBeenCalled();
+    });
+
+    it('the code exchange only runs AFTER the identityToken itself verifies (no network call wasted on an already-invalid token)', async () => {
+      const { state, cookie } = await startAppleAuth();
+      appleAuthProvider.verify.mockRejectedValue(
+        new UnauthorizedException('Token da Apple inválido ou expirado.'),
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/apple')
+        .set('Cookie', cookie)
+        .send({
+          token: 'identity-token-forjado',
+          state,
+          code: 'code-qualquer',
+          redirectUri: 'http://localhost:3000',
+        });
+
+      expect(res.status).toBe(401);
+      expect(appleTokenExchangeService.exchangeAndVerify).not.toHaveBeenCalled();
     });
   });
 });
