@@ -12,6 +12,9 @@ import { AppleTokenExchangeService } from './providers/apple-token-exchange.serv
 import { SocialAuthService } from './social-auth.service';
 import { PasswordResetService } from './password-reset.service';
 import { MailerService } from '../../common/mailer/mailer.service';
+import { RateLimitStore } from '../../common/rate-limit/rate-limit.store';
+import { RateLimitMetricsService } from '../../common/rate-limit/rate-limit-metrics.service';
+import { AuthRateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
 import { AppleChallengeService } from './apple-challenge.service';
 
 describe('POST /auth/register — public registration cannot mint privileged roles (CR-01.2)', () => {
@@ -52,6 +55,9 @@ describe('POST /auth/register — public registration cannot mint privileged rol
           useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
+        RateLimitStore,
+        RateLimitMetricsService,
+        AuthRateLimitGuard,
       ],
     }).compile();
 

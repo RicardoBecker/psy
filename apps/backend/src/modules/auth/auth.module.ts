@@ -13,12 +13,14 @@ import { AppleTokenExchangeService } from './providers/apple-token-exchange.serv
 import { SocialAuthService } from './social-auth.service';
 import { PasswordResetService } from './password-reset.service';
 import { MailerModule } from '../../common/mailer/mailer.module';
+import { RateLimitModule } from '../../common/rate-limit/rate-limit.module';
 import { AppleChallengeService } from './apple-challenge.service';
 
 @Module({
   imports: [
     UsersModule,
     MailerModule,
+    RateLimitModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

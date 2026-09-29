@@ -12,6 +12,9 @@ import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { PasswordResetService } from './password-reset.service';
 import { MailerService } from '../../common/mailer/mailer.service';
+import { RateLimitStore } from '../../common/rate-limit/rate-limit.store';
+import { RateLimitMetricsService } from '../../common/rate-limit/rate-limit-metrics.service';
+import { AuthRateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
 import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -70,6 +73,9 @@ describe('GET /auth/apple/start + POST /auth/apple — handshake state/nonce (KA
           useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
+        RateLimitStore,
+        RateLimitMetricsService,
+        AuthRateLimitGuard,
         { provide: AppleTokenExchangeService, useValue: appleTokenExchangeService },
         { provide: UsersService, useValue: usersService },
         { provide: PrismaService, useValue: prisma },

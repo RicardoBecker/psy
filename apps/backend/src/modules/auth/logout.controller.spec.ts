@@ -16,6 +16,9 @@ import { AppleTokenExchangeService } from './providers/apple-token-exchange.serv
 import { SocialAuthService } from './social-auth.service';
 import { PasswordResetService } from './password-reset.service';
 import { MailerService } from '../../common/mailer/mailer.service';
+import { RateLimitStore } from '../../common/rate-limit/rate-limit.store';
+import { RateLimitMetricsService } from '../../common/rate-limit/rate-limit-metrics.service';
+import { AuthRateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
 import { AppleChallengeService } from './apple-challenge.service';
 import { SESSION_COOKIE_NAME, CSRF_COOKIE_NAME } from '../../common/session-cookie';
 
@@ -46,6 +49,9 @@ describe('POST /auth/logout — encerra a sessão de verdade (CR-05.4)', () => {
           useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
+        RateLimitStore,
+        RateLimitMetricsService,
+        AuthRateLimitGuard,
       ],
     }).compile();
 
@@ -118,6 +124,9 @@ describe('Token forjado não libera nada (CR-05.4)', () => {
           useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
+        RateLimitStore,
+        RateLimitMetricsService,
+        AuthRateLimitGuard,
       ],
     }).compile();
 

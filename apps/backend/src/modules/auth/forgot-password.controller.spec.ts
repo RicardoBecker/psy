@@ -11,6 +11,9 @@ import { AppleAuthProvider } from './providers/apple.provider';
 import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { PasswordResetService } from './password-reset.service';
 import { MailerService } from '../../common/mailer/mailer.service';
+import { RateLimitStore } from '../../common/rate-limit/rate-limit.store';
+import { RateLimitMetricsService } from '../../common/rate-limit/rate-limit-metrics.service';
+import { AuthRateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
 import { AppleChallengeService } from './apple-challenge.service';
 import { UsersService } from '../users/users.service';
 
@@ -43,6 +46,9 @@ describe('POST /auth/forgot-password — never confirms or denies an email exist
         { provide: ConfigService, useValue: { get: () => 'http://localhost:3000' } },
         { provide: PasswordResetService, useValue: passwordResetService },
         { provide: MailerService, useValue: mailerService },
+        RateLimitStore,
+        RateLimitMetricsService,
+        AuthRateLimitGuard,
         AppleChallengeService,
       ],
     }).compile();

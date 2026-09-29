@@ -208,8 +208,13 @@ apps/backend/src/modules/
 | `POST` | `/auth/apple` | Login Apple | ✅ **Funcionando** (KAN-16) |
 | `POST` | `/auth/forgot-password` | Solicitar recuperação de senha | ✅ **Funcionando** (KAN-17) |
 | `POST` | `/auth/reset-password` | Redefinir senha com token | ✅ **Funcionando** (KAN-17) |
+| `GET` | `/admin/security/rate-limits` | Métricas de bloqueios (ADMIN) | ✅ **Funcionando** (KAN-18) |
 | `GET` | `/users/profile` | Perfil do usuário | ✅ **Funcionando** |
 | `GET` | `/health` | Health check | ✅ **Funcionando** |
+
+**Rate limiting (KAN-18)**: `register`, `login`, `google`, `apple`,
+`forgot-password` e `reset-password` têm limite de tentativas por IP e por
+identidade, com resposta `429` padronizada — ver `IA/RATE_LIMITING_SETUP.md`.
 
 ---
 
