@@ -5,6 +5,7 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { SocialLoginDto } from './dto/social-login.dto';
 import { SkipCsrf } from '../../common/skip-csrf.decorator';
 import { setSessionCookies, clearSessionCookies } from '../../common/session-cookie';
 
@@ -50,12 +51,20 @@ export class AuthController {
     return { success: true };
   }
 
-  // 🔍 Google OAuth Login — desabilitado até haver validação real do token
-  // (verificação de assinatura, issuer, audience e expiração junto ao provedor).
-  // Nenhum dado do corpo da requisição é usado: não há identidade a confiar aqui.
+  // 🔍 KAN-15: login com Google. Assim como register/login, isento de CSRF
+  // — ainda não existe sessão para um atacante abusar aqui. O `token` é o
+  // ID token assinado pelo Google (Google Identity Services no frontend);
+  // AuthService.loginWithGoogle verifica assinatura/issuer/audience/
+  // expiração antes de confiar em qualquer claim dele.
+  @SkipCsrf()
   @Post('google')
-  async googleLogin() {
-    throw new ServiceUnavailableException('Login com Google não está disponível no momento.');
+  async googleLogin(
+    @Body() dto: SocialLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { user, access_token } = await this.authService.loginWithGoogle(dto.token);
+    const csrfToken = setSessionCookies(res, access_token);
+    return { user, csrfToken };
   }
 
   // 🍎 Apple Sign In — desabilitado pelo mesmo motivo do Google acima.

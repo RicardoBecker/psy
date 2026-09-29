@@ -91,11 +91,13 @@ cd devOps && docker compose up
 - ✅ Após login, tentar acessar http://localhost:3000/login
 - ✅ **Resultado:** Redirecionado automaticamente para dashboard
 
-#### **Teste 6: Login Social (Preparado)**
-- ✅ Na tela de login, clicar em "Continuar com Google"
-- ✅ **Resultado:** Alerta informando que precisa de configuração OAuth
-- ✅ Na tela de login, clicar em "Continuar com Apple"  
-- ✅ **Resultado:** Alerta informando que precisa de credenciais Apple
+#### **Teste 6: Login Social**
+- ✅ Na tela de login, clicar em "Continuar com Google" (KAN-15)
+- ✅ **Resultado:** Fluxo real do Google Identity Services; login efetivo
+  quando `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` estão configurados
+  (ver `IA/SOCIAL_AUTH_SETUP.md`)
+- 🚧 Na tela de login, clicar em "Continuar com Apple"
+- 🚧 **Resultado:** Ainda desabilitado (503) — pendente KAN-16
 
 ---
 
@@ -200,8 +202,8 @@ apps/backend/src/modules/
 |--------|----------|---------|---------|
 | `POST` | `/auth/register` | Criar conta | ✅ **Funcionando** |
 | `POST` | `/auth/login` | Fazer login | ✅ **Funcionando** |
-| `POST` | `/auth/google` | Login Google | 🚧 **Preparado** |
-| `POST` | `/auth/apple` | Login Apple | 🚧 **Preparado** |
+| `POST` | `/auth/google` | Login Google | ✅ **Funcionando** (KAN-15) |
+| `POST` | `/auth/apple` | Login Apple | 🚧 **Preparado** (KAN-16) |
 | `GET` | `/users/profile` | Perfil do usuário | ✅ **Funcionando** |
 | `GET` | `/health` | Health check | ✅ **Funcionando** |
 

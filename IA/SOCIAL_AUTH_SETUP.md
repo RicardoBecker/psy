@@ -1,84 +1,52 @@
-# 🌐 Configuração de Login Social - TODO
+# 🌐 Configuração de Login Social
 
-Este documento descreve como finalizar a configuração dos logins sociais com Google e Apple.
+Este documento descreve como configurar (credenciais reais) os logins sociais com Google e Apple. A implementação em si já está pronta — falta só o Client ID de cada provedor por ambiente.
 
 ## 📋 Status Atual
 
-✅ **Implementado e Funcionando:**
-- Estrutura completa no backend (endpoints, services, controllers)
-- Estrutura completa no frontend (providers, API calls)
-- Botões funcionais nas telas de login/registro
-- Fluxo preparado para receber tokens
+✅ **Google (KAN-15) — implementado:**
+- Backend verifica o ID token do Google (assinatura, issuer, audience,
+  expiração) via `google-auth-library`, sem trocar código nem usar client
+  secret — ver `apps/backend/src/modules/auth/providers/google.provider.ts`.
+- Frontend usa o Google Identity Services (carregado sob demanda) para obter
+  o ID token e envia só isso ao backend — ver `apps/frontend/lib/google-identity.ts`.
+- Contas: identidade vinculada via tabela `social_identities`; login com
+  e-mail já existente só vincula quando o Google confirma `email_verified`.
 
-🚧 **Pendente de Configuração:**
-- Credenciais OAuth do Google
-- Credenciais do Apple Developer
-- Validação real de tokens
-- Configuração de domínios autorizados
+🚧 **Apple — pendente (KAN-16):**
+- Endpoint `POST /auth/apple` continua desabilitado (503) até essa história
+  ser implementada.
 
 ---
 
-## 🔍 Google OAuth Setup
+## 🔍 Google — configurar credenciais reais
 
 ### 1. Google Cloud Console
 1. Acesse [Google Cloud Console](https://console.cloud.google.com/)
 2. Crie um novo projeto ou selecione existente
-3. Ative a **Google+ API** e **Google Identity API**
-4. Vá em **Credentials** > **Create Credentials** > **OAuth client ID**
-5. Configure **Authorized JavaScript origins**:
+3. Vá em **APIs & Services** > **Credentials** > **Create Credentials** >
+   **OAuth client ID** > tipo **Web application**
+4. Configure **Authorized JavaScript origins** (não precisa de redirect URI —
+   o fluxo é client-side, sem callback no backend):
    - `http://localhost:3000` (desenvolvimento)
    - `https://seudominio.com` (produção)
 
-### 2. Variáveis de Ambiente
-Adicione no `.env` do backend:
+### 2. Variáveis de ambiente
+Só o Client ID — não há client secret porque o backend nunca troca código
+por token, só verifica a assinatura do ID token que o frontend já recebeu.
+
+Backend (`apps/backend/.env`, ou `GOOGLE_CLIENT_ID` no `devOps/.env`):
 ```env
-GOOGLE_CLIENT_ID=seu_google_client_id.googleusercontent.com
-GOOGLE_CLIENT_SECRET=seu_google_client_secret
+GOOGLE_CLIENT_ID=seu_google_client_id.apps.googleusercontent.com
 ```
 
-Adicione no `.env.local` do frontend:
+Frontend (mesmo valor, variável pública — roda no navegador):
 ```env
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=seu_google_client_id.googleusercontent.com
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=seu_google_client_id.apps.googleusercontent.com
 ```
 
-### 3. Instalar Dependências
-Instale as dependências necessárias:
-
-**Backend:**
-```bash
-cd apps/backend
-npm install google-auth-library
-```
-
-**Frontend:**
-```bash
-cd apps/frontend  
-npm install @google-cloud/local-auth google-auth-library
-# ou usar react-google-login para facilitar
-npm install react-google-login
-```
-
-### 4. Implementar Validação Real
-No arquivo `social-auth.service.ts`, descomente e configure:
-
-```typescript
-// Substituir o mock por validação real:
-const { OAuth2Client } = require('google-auth-library');
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
-const ticket = await client.verifyIdToken({
-  idToken: token,
-  audience: process.env.GOOGLE_CLIENT_ID,
-});
-
-const payload = ticket.getPayload();
-const googleUser = {
-  sub: payload.sub,
-  email: payload.email,
-  name: payload.name,
-  picture: payload.picture,
-};
-```
+Sem `GOOGLE_CLIENT_ID` configurado, `POST /auth/google` responde 401 em vez
+de pular a verificação — ver `google.provider.ts`.
 
 ---
 
@@ -137,12 +105,10 @@ const appleUser = {
 
 ## 🔄 Próximos Passos
 
-1. **Configurar Google OAuth** seguindo os passos acima
-2. **Configurar Apple Sign In** seguindo os passos acima  
+1. **Configurar Google OAuth** com credenciais reais (Google já implementado, ver acima)
+2. **Implementar e configurar Apple Sign In** (KAN-16, ainda não iniciado)
 3. **Testar em desenvolvimento** com domains localhost
 4. **Configurar para produção** com domínios reais
-5. **Implementar tratamento de erros** mais robusto
-6. **Adicionar analytics** para acompanhar conversões
 
 ---
 
@@ -150,20 +116,7 @@ const appleUser = {
 
 - **Nunca commitar credenciais** no código
 - **Usar variáveis de ambiente** para todas as chaves
-- **Validar tokens no backend** - nunca confiar apenas no frontend
+- **Validar tokens no backend** - nunca confiar apenas no frontend (Google
+  já segue isso; Apple seguirá o mesmo padrão quando implementado)
 - **Configurar CORS** adequadamente para produção
 - **Testar fluxo completo** antes do deploy
-
----
-
-## 📞 Como Ativar
-
-Quando estiver pronto:
-
-1. Configure as variáveis de ambiente
-2. Instale as dependências
-3. Substitua os mocks pela validação real
-4. Teste o fluxo completo
-5. Remove os alerts dos botões sociais no frontend
-
-Os botões já estão funcionais e prontos para receber a configuração real!

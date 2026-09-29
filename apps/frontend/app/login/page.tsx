@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../providers/auth-provider';
 import { Button, Input, Alert } from '../../components/ui';
+import { promptGoogleSignIn } from '../../lib/google-identity';
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -13,8 +14,9 @@ export default function LoginPage() {
   });
   const [error, setError] = useState('');
   
-  const { login, isLoading } = useAuth();
+  const { login, googleLogin, isLoading } = useAuth();
   const router = useRouter();
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +40,31 @@ export default function LoginPage() {
       ...prev,
       [e.target.name]: e.target.value
     }));
+  };
+
+  // 🔍 KAN-15/KAN-74: dispara o Google Identity Services. O callback só é
+  // chamado quando o usuário conclui o login de verdade — fechar/ignorar o
+  // prompt não passa por aqui, então não mostramos erro nesse caso.
+  const handleGoogleLogin = async () => {
+    setError('');
+    setIsGoogleLoading(true);
+    try {
+      // Resolve assim que o prompt do Google é exibido — não espera a
+      // decisão do usuário (a UI do próprio Google cobre esse tempo de
+      // espera). `onCredential` só dispara em caso de sucesso.
+      await promptGoogleSignIn(async (idToken) => {
+        try {
+          await googleLogin(idToken);
+          router.push('/dashboard');
+        } catch (err: any) {
+          setError(err.message || 'Erro no login com Google');
+        }
+      });
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível iniciar o login com Google.');
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
 
   return (
@@ -97,13 +124,11 @@ export default function LoginPage() {
 
             {/* Social Login Buttons */}
             <div className="space-y-3">
-              <Button 
-                variant="social" 
+              <Button
+                variant="social"
                 type="button"
-                onClick={() => {
-                  // TODO: Implementar Google OAuth
-                  alert('🚧 Google Login será implementado com as credenciais OAuth');
-                }}
+                isLoading={isGoogleLoading}
+                onClick={handleGoogleLogin}
               >
                 <div className="flex items-center justify-center space-x-2">
                   <span>🔍</span>

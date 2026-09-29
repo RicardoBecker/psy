@@ -4,6 +4,9 @@ import * as request from 'supertest';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
+// 🍎 KAN-16 ainda não implementado — Apple Sign In continua desabilitado.
+// (O equivalente para Google foi substituído por google-login.controller.spec.ts
+// quando KAN-15 passou a implementá-lo de verdade.)
 describe('AuthController — disabled social login endpoints (CR-01.1)', () => {
   let app: INestApplication;
   const authService = {
@@ -23,24 +26,6 @@ describe('AuthController — disabled social login endpoints (CR-01.1)', () => {
 
   afterAll(async () => {
     await app.close();
-  });
-
-  it('POST /auth/google returns 503 and never issues a token, regardless of body', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/auth/google')
-      .send({ token: 'anything-an-attacker-makes-up' });
-
-    expect(res.status).toBe(503);
-    expect(res.body).not.toHaveProperty('access_token');
-    expect(res.body).not.toHaveProperty('user');
-    expect(JSON.stringify(res.body)).not.toMatch(/user@gmail\.com|user@icloud\.com/);
-  });
-
-  it('POST /auth/google with an empty body still returns 503, never a token', async () => {
-    const res = await request(app.getHttpServer()).post('/auth/google').send({});
-
-    expect(res.status).toBe(503);
-    expect(res.body).not.toHaveProperty('access_token');
   });
 
   it('POST /auth/apple returns 503 and never issues a token, regardless of body', async () => {

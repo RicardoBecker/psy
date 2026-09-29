@@ -5,6 +5,8 @@ import * as request from 'supertest';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
+import { GoogleAuthProvider } from './providers/google.provider';
+import { SocialAuthService } from './social-auth.service';
 
 describe('POST /auth/register — public registration cannot mint privileged roles (CR-01.2)', () => {
   let app: INestApplication;
@@ -33,6 +35,8 @@ describe('POST /auth/register — public registration cannot mint privileged rol
         AuthService,
         { provide: UsersService, useValue: usersService },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },
+        { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
       ],
     }).compile();
 
