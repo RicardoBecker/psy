@@ -93,20 +93,35 @@ describe('RegisterPage — Apple Sign-Up (KAN-158)', () => {
   });
 
   it('successful credential: signs up via Apple and navigates to /dashboard', async () => {
-    appleSignInMock.mockResolvedValue({ idToken: 'id-token-valido-da-apple', state: 'state-do-desafio' });
+    appleSignInMock.mockResolvedValue({
+      idToken: 'id-token-valido-da-apple',
+      state: 'state-do-desafio',
+      code: 'authorization-code-da-apple',
+      redirectUri: 'http://localhost:3000',
+    });
     appleLoginMock.mockResolvedValue(undefined);
 
     render(<RegisterPage />);
     fireEvent.click(screen.getByText('Continuar com Apple'));
 
     await waitFor(() =>
-      expect(appleLoginMock).toHaveBeenCalledWith('id-token-valido-da-apple', 'state-do-desafio'),
+      expect(appleLoginMock).toHaveBeenCalledWith(
+        'id-token-valido-da-apple',
+        'state-do-desafio',
+        'authorization-code-da-apple',
+        'http://localhost:3000',
+      ),
     );
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/dashboard'));
   });
 
   it('backend rejects the token: shows the error, does not navigate', async () => {
-    appleSignInMock.mockResolvedValue({ idToken: 'id-token-invalido', state: 'state-do-desafio' });
+    appleSignInMock.mockResolvedValue({
+      idToken: 'id-token-invalido',
+      state: 'state-do-desafio',
+      code: 'authorization-code-da-apple',
+      redirectUri: 'http://localhost:3000',
+    });
     appleLoginMock.mockRejectedValue(new Error('Token da Apple inválido ou expirado.'));
 
     render(<RegisterPage />);

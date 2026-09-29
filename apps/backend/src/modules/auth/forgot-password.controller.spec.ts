@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import { SocialAuthService } from './social-auth.service';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
+import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { PasswordResetService } from './password-reset.service';
 import { MailerService } from '../../common/mailer/mailer.service';
 import { RateLimitStore } from '../../common/rate-limit/rate-limit.store';
@@ -40,6 +41,7 @@ describe('POST /auth/forgot-password — never confirms or denies an email exist
         { provide: JwtService, useValue: { sign: jest.fn() } },
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: AppleTokenExchangeService, useValue: { exchangeAndVerify: jest.fn().mockResolvedValue(undefined) } },
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
         { provide: ConfigService, useValue: { get: () => 'http://localhost:3000' } },
         { provide: PasswordResetService, useValue: passwordResetService },

@@ -9,8 +9,7 @@ describe('PasswordResetService — single-use, short-lived tokens; only the hash
   let service: PasswordResetService;
   let prisma: {
     passwordResetToken: {
-      deleteMany: jest.Mock;
-      create: jest.Mock;
+      upsert: jest.Mock;
       updateMany: jest.Mock;
       findUnique: jest.Mock;
     };
@@ -21,15 +20,14 @@ describe('PasswordResetService — single-use, short-lived tokens; only the hash
   beforeEach(() => {
     prisma = {
       passwordResetToken: {
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-        create: jest.fn().mockResolvedValue({}),
+        upsert: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn(),
         findUnique: jest.fn(),
       },
       user: { update: jest.fn() },
     } as any;
-    // Mock de $transaction cobre as duas formas usadas pelo service:
-    // array de promises (createTokenForUser) e callback (consumeToken...).
+    // consumeTokenAndUpdatePassword ainda usa $transaction (callback) —
+    // createTokenForUser não usa mais (ver describe abaixo).
     prisma.$transaction = jest.fn().mockImplementation((arg: unknown) => {
       if (typeof arg === 'function') return (arg as (tx: typeof prisma) => unknown)(prisma);
       return Promise.all(arg as Promise<unknown>[]);
@@ -37,14 +35,23 @@ describe('PasswordResetService — single-use, short-lived tokens; only the hash
     service = new PasswordResetService(prisma as any);
   });
 
+  // 🔒 KAN-156 (P2, re-review PR #19): estes testes (mocks) provam só a
+  // FORMA da chamada ao Prisma — não provam segurança sob concorrência
+  // real, que é o que o finding original cobrava ("mocks isolados não
+  // comprovam o critério"). A prova de concorrência real está em
+  // password-reset-concurrency.e2e.spec.ts, contra PostgreSQL de verdade.
   describe('createTokenForUser', () => {
     it('persists only the SHA-256 hash of the raw token it returns, never the raw value', async () => {
       const rawToken = await service.createTokenForUser('user-1');
 
       expect(rawToken).toMatch(/^[0-9a-f]{64}$/); // 32 bytes em hex
-      expect(prisma.passwordResetToken.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ userId: 'user-1', tokenHash: sha256(rawToken) }),
-      });
+      expect(prisma.passwordResetToken.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1' },
+          create: expect.objectContaining({ userId: 'user-1', tokenHash: sha256(rawToken) }),
+          update: expect.objectContaining({ tokenHash: sha256(rawToken) }),
+        }),
+      );
     });
 
     it('sets an expiry roughly 30 minutes in the future', async () => {
@@ -52,27 +59,26 @@ describe('PasswordResetService — single-use, short-lived tokens; only the hash
       await service.createTokenForUser('user-1');
       const after = Date.now();
 
-      const { expiresAt } = prisma.passwordResetToken.create.mock.calls[0][0].data;
-      expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + 29 * 60 * 1000);
-      expect(expiresAt.getTime()).toBeLessThanOrEqual(after + 31 * 60 * 1000);
+      const { create, update } = prisma.passwordResetToken.upsert.mock.calls[0][0];
+      for (const { expiresAt } of [create, update]) {
+        expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + 29 * 60 * 1000);
+        expect(expiresAt.getTime()).toBeLessThanOrEqual(after + 31 * 60 * 1000);
+      }
     });
 
-    it('invalidates any previous unused token for the same user before creating a new one', async () => {
+    // 🔒 userId é @unique no schema (ver prisma/schema.prisma) — upsert é
+    // UM único statement atômico (INSERT ... ON CONFLICT DO UPDATE no
+    // Postgres), não duas operações separadas como o delete+create
+    // anterior. `update` também limpa `usedAt` — reemitir um token para
+    // quem já tinha um token USADO (usedAt preenchido) precisa deixar a
+    // linha ativa de novo, não continuar marcada como consumida.
+    it('upserts by userId in a single call, clearing usedAt on the update branch', async () => {
       await service.createTokenForUser('user-1');
 
-      expect(prisma.passwordResetToken.deleteMany).toHaveBeenCalledWith({
-        where: { userId: 'user-1', usedAt: null },
-      });
-    });
-
-    // 🔒 Code review PR #19 (KAN-156, P2): delete + create precisam rodar
-    // como uma única transação — nunca um sem o outro.
-    it('runs delete + create inside a single $transaction call', async () => {
-      await service.createTokenForUser('user-1');
-
-      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-      const [args] = prisma.$transaction.mock.calls[0];
-      expect(Array.isArray(args)).toBe(true);
+      expect(prisma.passwordResetToken.upsert).toHaveBeenCalledTimes(1);
+      const [args] = prisma.passwordResetToken.upsert.mock.calls[0];
+      expect(args.where).toEqual({ userId: 'user-1' });
+      expect(args.update.usedAt).toBeNull();
     });
   });
 

@@ -14,6 +14,7 @@ import { MailerService } from '../../common/mailer/mailer.service';
 import { RateLimitStore } from '../../common/rate-limit/rate-limit.store';
 import { RateLimitMetricsService } from '../../common/rate-limit/rate-limit-metrics.service';
 import { AuthRateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
+import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthProvider } from '../../common/types/auth.types';
@@ -66,6 +67,7 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
         RateLimitStore,
         RateLimitMetricsService,
         AuthRateLimitGuard,
+        { provide: AppleTokenExchangeService, useValue: { exchangeAndVerify: jest.fn().mockResolvedValue(undefined) } },
         AppleChallengeService,
         { provide: UsersService, useValue: usersService },
         { provide: PrismaService, useValue: prisma },

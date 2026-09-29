@@ -73,7 +73,7 @@ model User {
   patientLinks           PatientPsychologistLink[] @relation("PatientLinks")
   psychologistLinks      PatientPsychologistLink[] @relation("PsychologistLinks")
   socialIdentities       SocialIdentity[]
-  passwordResetTokens    PasswordResetToken[]
+  passwordResetToken     PasswordResetToken?
 
   @@map("users")
 }
@@ -100,11 +100,24 @@ model SocialIdentity {
 // 🔒 KAN-17: guarda só o HASH do token de recuperação (SHA-256), nunca o
 // valor cru — o mesmo raciocínio de nunca guardar senha em texto plano.
 // `usedAt` faz o token ser de uso único; `expiresAt` limita a janela de
-// validade. Uma nova solicitação (AuthService.forgotPassword) invalida
-// qualquer token anterior ainda não usado do mesmo usuário.
+// validade.
+//
+// 🔒 KAN-156 (P2, re-review PR #19): `userId` é `@unique` — no máximo UMA
+// linha por usuário, ponto, não "o token mais recente entre várias
+// linhas". PasswordResetService.createTokenForUser troca o delete+create
+// (duas operações, vulnerável a corrida quando não há token anterior) por
+// um único `upsert` keyed em `userId`, que o Postgres resolve atomicamente
+// via `INSERT ... ON CONFLICT (user_id) DO UPDATE` — sob duas solicitações
+// concorrentes, uma delas grava por último e sobrescreve a outra na MESMA
+// linha; o token da que "perdeu" deixa de bater com o tokenHash gravado e
+// passa a ser rejeitado como inválido (nunca duas linhas válidas
+// coexistindo). Ver password-reset.service.spec.ts (mocks) e
+// password-reset-concurrency.e2e.spec.ts (concorrência real contra
+// Postgres) para a prova de que isso vale sob execução concorrente de
+// verdade, não só "a chamada ao Prisma foi feita".
 model PasswordResetToken {
   id        String    @id @default(uuid())
-  userId    String    @map("user_id")
+  userId    String    @unique @map("user_id")
   tokenHash String    @unique @map("token_hash")
   expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
@@ -112,7 +125,6 @@ model PasswordResetToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
   @@map("password_reset_tokens")
 }
 

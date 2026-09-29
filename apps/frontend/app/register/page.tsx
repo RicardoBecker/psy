@@ -84,8 +84,8 @@ export default function RegisterPage() {
     setError('');
     setIsAppleLoading(true);
     try {
-      const { idToken, state } = await appleSignIn();
-      await appleLogin(idToken, state);
+      const { idToken, state, code, redirectUri } = await appleSignIn();
+      await appleLogin(idToken, state, code, redirectUri);
       router.push('/dashboard');
     } catch (err: any) {
       if (!isAppleSignInCancellation(err)) {

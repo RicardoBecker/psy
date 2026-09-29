@@ -119,8 +119,11 @@ export const authApi = {
   },
 
   // 🍎 Login com Apple
-  async appleLogin(token: string, state: string): Promise<AuthResponse> {
-    const response = await api.post('/auth/apple', { token, state });
+  // 🔒 KAN-158 (P2, re-review PR #18): `code` e `redirectUri` são exigidos
+  // pelo backend para trocar o authorization code no endpoint oficial da
+  // Apple antes de confiar na identidade — ver apple-identity.ts.
+  async appleLogin(token: string, state: string, code: string, redirectUri: string): Promise<AuthResponse> {
+    const response = await api.post('/auth/apple', { token, state, code, redirectUri });
     return response.data;
   },
 
