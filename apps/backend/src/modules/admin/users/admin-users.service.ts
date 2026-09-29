@@ -6,6 +6,7 @@ import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { Role, AgeGroup, calculateAgeGroup } from '../../../common/types/auth.types';
+import { normalizeEmail } from '../../../common/email.util';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -92,17 +93,23 @@ export class AdminUsersService {
   }
 
   // ➕ Criar usuário (admin)
+  // 🔒 KAN-157 (P2, re-review PR #17): normalizar o e-mail aqui também —
+  // sem isso, um admin podia criar "Pessoa@Exemplo.com" e o login local
+  // (que busca por normalizeEmail(email)) nunca encontrava essa conta,
+  // além de permitir duplicata lógica por diferença de caixa/espaços.
   async createUser(createUserDto: CreateAdminUserDto) {
+    const email = normalizeEmail(createUserDto.email);
+
     // Verificar se email já existe
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: createUserDto.email },
+      where: { email },
     });
 
     if (existingUser) {
       throw new ConflictException('Email já está em uso');
     }
 
-    const { password, ...userData } = createUserDto;
+    const { password, email: _rawEmail, ...userData } = createUserDto;
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Calcular ageGroup se birthDate foi fornecido
@@ -114,6 +121,7 @@ export class AdminUsersService {
     const user = await this.prisma.user.create({
       data: {
         ...userData,
+        email,
         passwordHash,
         ageGroup,
         birthDate: createUserDto.birthDate ? new Date(createUserDto.birthDate) : null,
@@ -134,21 +142,32 @@ export class AdminUsersService {
   }
 
   // ✏️ Atualizar usuário
+  // 🔒 KAN-157 (P2, re-review PR #17): mesma normalização do createUser —
+  // compara e persiste o e-mail já normalizado para detectar conflito
+  // mesmo quando o novo valor difere do existente só por caixa/espaços
+  // (ex.: usuário tem "pessoa@exemplo.com", admin edita para
+  // "Pessoa@Exemplo.com  " — sem normalizar, isso passaria como "diferente"
+  // e nunca colidiria com o próprio registro nem com outro).
   async updateUser(id: string, updateUserDto: UpdateAdminUserDto) {
     const existingUser = await this.getUserById(id);
 
+    const email = updateUserDto.email ? normalizeEmail(updateUserDto.email) : undefined;
+
     // Se email está sendo alterado, verificar se não existe
-    if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
+    if (email && email !== existingUser.email) {
       const emailExists = await this.prisma.user.findUnique({
-        where: { email: updateUserDto.email },
+        where: { email },
       });
-      
+
       if (emailExists) {
         throw new ConflictException('Email já está em uso');
       }
     }
 
     const updateData: any = { ...updateUserDto };
+    if (email !== undefined) {
+      updateData.email = email;
+    }
 
     // Recalcular ageGroup se birthDate foi alterado
     if (updateUserDto.birthDate) {

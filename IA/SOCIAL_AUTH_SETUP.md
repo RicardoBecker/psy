@@ -13,8 +13,8 @@ Este documento descreve como configurar (credenciais reais) os logins sociais co
 
 ✅ **Apple (KAN-16) — implementado:**
 - Backend verifica o `identityToken` da Apple (assinatura via JWKS remoto,
-  issuer, audience, expiração) com `jose`, sem client secret nem troca de
-  código — ver `apps/backend/src/modules/auth/providers/apple.provider.ts`.
+  issuer, audience, expiração) com `jose` —
+  ver `apps/backend/src/modules/auth/providers/apple.provider.ts`.
 - Frontend usa o "Sign in with Apple JS" (popup, carregado sob demanda) para
   obter o `identityToken` — ver `apps/frontend/lib/apple-identity.ts`.
 - **Code review PR #18 (KAN-158, P1) — handshake state/nonce:** antes de
@@ -25,20 +25,22 @@ Este documento descreve como configurar (credenciais reais) os logins sociais co
   bata com o do cookie E que o claim `nonce` do ID token bata com o nonce
   do desafio — sem isso, um ID token Apple válido obtido fora desta
   tentativa (replay, phishing, MITM) funcionaria como bearer credential.
-  Ver [Verifying a user](https://developer.apple.com/documentation/signinwithapple/verifying-a-user).
-- **Decisão de escopo consciente:** o finding original também sugeria
-  validar o `authorization.code` contra o endpoint de token da Apple
-  (`https://appleid.apple.com/auth/token`). Isso exigiria gerar um client
-  secret JWT (ES256) com `APPLE_TEAM_ID`/`APPLE_KEY_ID`/chave privada do
-  Apple Developer — infraestrutura que não existe neste projeto e que o
-  handshake state/nonce acima já torna redundante para o risco descrito
-  (replay/session-swap): nonce prova que o token é resposta à tentativa
-  DESTE navegador: um atacante não consegue obter um ID token Apple
-  assinado com um nonce que ele não controla sem a vítima autenticar de
-  verdade contra a Apple usando esse nonce. Troca de código fica como
-  hardening adicional (defesa em profundidade "porque a Apple recomenda"),
-  não como algo que fecha uma vulnerabilidade hoje aberta — revisitar se o
-  time decidir que vale o custo operacional de gerenciar a chave privada.
+- **KAN-158 (P2, re-review PR #18) — troca do authorization code:** a doc
+  oficial da Apple é explícita — "web apps must validate the authorization
+  code using the Token validation endpoint" — a verificação local do
+  identityToken (item acima) prova só o que o CLIENTE afirma ter recebido,
+  não que a Apple de fato emitiu essa autorização para o nosso client_id.
+  `AppleTokenExchangeService` gera um client_secret (JWT ES256 assinado com
+  `APPLE_PRIVATE_KEY`, `iss=APPLE_TEAM_ID`, `sub=APPLE_CLIENT_ID`,
+  `aud=https://appleid.apple.com`, ver "Creating a client secret" abaixo) e
+  troca o `code` no endpoint `https://appleid.apple.com/auth/token`; o
+  `id_token` devolvido é reverificado e precisa bater com o MESMO
+  `sub`/`nonce` já validados. Um `code` inválido, expirado (TTL de 5min) ou
+  já usado faz a Apple responder `invalid_grant` — nesse caso o login é
+  bloqueado mesmo com identityToken e state/nonce corretos. Ver
+  [Verifying a user](https://developer.apple.com/documentation/signinwithapple/verifying-a-user),
+  [Generate and validate tokens](https://developer.apple.com/documentation/signinwithapplerestapi/generate-and-validate-tokens)
+  e [Creating a client secret](https://developer.apple.com/documentation/accountorganizationaldatasharing/creating-a-client-secret).
 
 Contas: identidade vinculada via tabela `social_identities`, mesma lógica
 para os dois provedores (`SocialAuthService`); login com e-mail já existente
@@ -89,24 +91,37 @@ de pular a verificação — ver `google.provider.ts`.
    com a origem do frontend (ex.: `https://seudominio.com`) — o fluxo é
    popup client-side (`usePopup: true`), então essa URL não recebe um
    callback de verdade, só precisa estar na allowlist da Apple
+5. **KAN-158 (P2):** em **Certificates, Identifiers & Profiles** >
+   **Keys**, crie uma chave com **Sign In with Apple** habilitado e associe
+   ao seu App ID. Baixe o arquivo `.p8` (só é possível uma vez) — ele é o
+   `APPLE_PRIVATE_KEY`. Anote também o **Key ID** (10 caracteres, mostrado
+   na criação da chave) e o **Team ID** (10 caracteres, canto superior
+   direito do Apple Developer, ou em **Membership**) — são o `APPLE_KEY_ID`
+   e o `APPLE_TEAM_ID`.
 
 ### 2. Variáveis de ambiente
-Só o Services ID — sem team id/key id/chave privada, porque não geramos um
-client secret JWT nem trocamos código: só verificamos a assinatura do
-`identityToken` que o frontend já recebeu, contra o JWKS público da Apple.
 
-Backend (`apps/backend/.env`, ou `APPLE_CLIENT_ID` no `devOps/.env`):
+Backend (`apps/backend/.env`, ou as mesmas 4 chaves no `devOps/.env`):
 ```env
 APPLE_CLIENT_ID=com.seudominio.web
+APPLE_TEAM_ID=ABCDE12345
+APPLE_KEY_ID=FGHIJ67890
+# Conteúdo do .p8 baixado no passo 5, com \n literais no lugar de quebras
+# de linha reais (mesmo padrão de outras chaves privadas em env var de uma
+# linha só):
+APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBM...\n-----END PRIVATE KEY-----"
 ```
 
-Frontend (mesmo valor, variável pública):
+Frontend (só o Services ID — as outras 3 chaves nunca vão ao navegador):
 ```env
 NEXT_PUBLIC_APPLE_CLIENT_ID=com.seudominio.web
 ```
 
-Sem `APPLE_CLIENT_ID` configurado, `POST /auth/apple` responde 401 em vez de
-pular a verificação — ver `apple.provider.ts`.
+Sem `APPLE_CLIENT_ID`, `POST /auth/apple` responde 401 em vez de pular a
+verificação do identityToken — ver `apple.provider.ts`. Sem qualquer uma
+das outras 3 (`APPLE_TEAM_ID`/`APPLE_KEY_ID`/`APPLE_PRIVATE_KEY`), o mesmo
+endpoint responde 401 em vez de pular a troca do authorization code — ver
+`apple-token-exchange.service.ts`.
 
 ---
 

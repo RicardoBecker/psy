@@ -8,6 +8,7 @@ import { UsersService } from '../users/users.service';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
+import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { SocialAuthService } from './social-auth.service';
 import { PasswordResetService } from './password-reset.service';
 import { MailerService } from '../../common/mailer/mailer.service';
@@ -42,6 +43,7 @@ describe('POST /auth/register — public registration cannot mint privileged rol
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
         { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: AppleTokenExchangeService, useValue: { exchangeAndVerify: jest.fn().mockResolvedValue(undefined) } },
         AppleChallengeService,
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },

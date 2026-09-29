@@ -109,7 +109,12 @@ export class AuthController {
     clearAppleChallengeCookie(res);
     const { nonce } = this.appleChallengeService.verify(signedChallenge, dto.state);
 
-    const { user, access_token } = await this.authService.loginWithApple(dto.token, nonce);
+    const { user, access_token } = await this.authService.loginWithApple(
+      dto.token,
+      dto.code,
+      dto.redirectUri,
+      nonce,
+    );
     const csrfToken = setSessionCookies(res, access_token);
     return { user, csrfToken };
   }

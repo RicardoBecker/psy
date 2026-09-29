@@ -11,6 +11,7 @@ import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { PasswordResetService } from './password-reset.service';
 import { MailerService } from '../../common/mailer/mailer.service';
+import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthProvider } from '../../common/types/auth.types';
@@ -60,6 +61,7 @@ describe('POST /auth/google — id token verificado vira sessão própria (KAN-1
           useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
         },
         { provide: MailerService, useValue: { send: jest.fn() } },
+        { provide: AppleTokenExchangeService, useValue: { exchangeAndVerify: jest.fn().mockResolvedValue(undefined) } },
         AppleChallengeService,
         { provide: UsersService, useValue: usersService },
         { provide: PrismaService, useValue: prisma },

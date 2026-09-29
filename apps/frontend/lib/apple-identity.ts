@@ -15,7 +15,7 @@ const APPLE_JS_SRC =
   'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
 
 interface AppleAuthorizationResponse {
-  authorization: { id_token: string; state?: string };
+  authorization: { id_token: string; code: string; state?: string };
 }
 
 interface AppleIdApi {
@@ -62,24 +62,36 @@ function loadAppleScript(): Promise<void> {
 }
 
 // 🚪 Ponto de entrada único: busca o desafio, inicializa o SDK (se preciso)
-// e abre o popup de login. Resolve com {idToken, state} em caso de
-// sucesso; ao usuário fechar o popup, a Apple rejeita a Promise com
-// `error: 'popup_closed_by_user'` — não é um erro de verdade (ver
+// e abre o popup de login. Resolve com {idToken, state, code, redirectUri}
+// em caso de sucesso; ao usuário fechar o popup, a Apple rejeita a Promise
+// com `error: 'popup_closed_by_user'` — não é um erro de verdade (ver
 // login/page.tsx: KAN-76 "tratar cancelamento").
-export async function appleSignIn(): Promise<{ idToken: string; state: string }> {
+//
+// 🔒 KAN-158 (P2, re-review PR #18): `code` (authorization.code, devolvido
+// na mesma resposta do popup) e `redirectUri` (o mesmo valor que passamos a
+// AppleID.auth.init() logo abaixo) vão para o backend, que troca o code no
+// endpoint oficial da Apple antes de confiar na identidade — ver
+// AuthService.loginWithApple / AppleTokenExchangeService no backend.
+export async function appleSignIn(): Promise<{
+  idToken: string;
+  state: string;
+  code: string;
+  redirectUri: string;
+}> {
   const clientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID;
   if (!clientId) {
     throw new Error('Login com Apple não está disponível no momento.');
   }
 
   const { state, nonce } = await authApi.startAppleAuth();
+  const redirectUri = window.location.origin;
 
   await loadAppleScript();
 
   window.AppleID!.auth.init({
     clientId,
     scope: 'email',
-    redirectURI: window.location.origin,
+    redirectURI: redirectUri,
     usePopup: true,
     nonce,
     state,
@@ -89,7 +101,12 @@ export async function appleSignIn(): Promise<{ idToken: string; state: string }>
   // A Apple ecoa o `state` na resposta de autorização; se por algum motivo
   // não vier, usamos o que geramos localmente — o backend é quem faz a
   // comparação de verdade contra o cookie assinado.
-  return { idToken: response.authorization.id_token, state: response.authorization.state ?? state };
+  return {
+    idToken: response.authorization.id_token,
+    state: response.authorization.state ?? state,
+    code: response.authorization.code,
+    redirectUri,
+  };
 }
 
 // ✋ A Apple sinaliza cancelamento do usuário com esse código de erro
