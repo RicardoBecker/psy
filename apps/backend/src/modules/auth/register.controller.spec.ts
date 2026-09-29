@@ -5,8 +5,17 @@ import * as request from 'supertest';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
+import { ConfigService } from '@nestjs/config';
 import { GoogleAuthProvider } from './providers/google.provider';
+import { AppleAuthProvider } from './providers/apple.provider';
+import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { SocialAuthService } from './social-auth.service';
+import { PasswordResetService } from './password-reset.service';
+import { MailerService } from '../../common/mailer/mailer.service';
+import { RateLimitStore } from '../../common/rate-limit/rate-limit.store';
+import { RateLimitMetricsService } from '../../common/rate-limit/rate-limit-metrics.service';
+import { AuthRateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
+import { AppleChallengeService } from './apple-challenge.service';
 
 describe('POST /auth/register — public registration cannot mint privileged roles (CR-01.2)', () => {
   let app: INestApplication;
@@ -36,7 +45,19 @@ describe('POST /auth/register — public registration cannot mint privileged rol
         { provide: UsersService, useValue: usersService },
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('fake.jwt.token') } },
         { provide: GoogleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: AppleAuthProvider, useValue: { verify: jest.fn() } },
+        { provide: AppleTokenExchangeService, useValue: { exchangeAndVerify: jest.fn().mockResolvedValue(undefined) } },
+        AppleChallengeService,
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        {
+          provide: PasswordResetService,
+          useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
+        },
+        { provide: MailerService, useValue: { send: jest.fn() } },
+        RateLimitStore,
+        RateLimitMetricsService,
+        AuthRateLimitGuard,
       ],
     }).compile();
 

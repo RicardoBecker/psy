@@ -96,8 +96,10 @@ cd devOps && docker compose up
 - ✅ **Resultado:** Fluxo real do Google Identity Services; login efetivo
   quando `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` estão configurados
   (ver `IA/SOCIAL_AUTH_SETUP.md`)
-- 🚧 Na tela de login, clicar em "Continuar com Apple"
-- 🚧 **Resultado:** Ainda desabilitado (503) — pendente KAN-16
+- ✅ Na tela de login, clicar em "Continuar com Apple" (KAN-16)
+- ✅ **Resultado:** Fluxo real do Sign in with Apple JS (popup); login
+  efetivo quando `APPLE_CLIENT_ID`/`NEXT_PUBLIC_APPLE_CLIENT_ID` estão
+  configurados (ver `IA/SOCIAL_AUTH_SETUP.md`)
 
 ---
 
@@ -192,7 +194,7 @@ apps/backend/src/modules/
 | **Container** | Docker Compose | ✅ **Funcionando** |
 | **HTTP Client** | Axios | ✅ **Funcionando** |
 | **Validation** | class-validator | ✅ **Funcionando** |
-| **Social Auth** | Estrutura preparada | 🚧 **Aguarda config** |
+| **Social Auth** | Google (KAN-15) e Apple (KAN-16) implementados | ✅ **Aguarda credenciais reais por ambiente** |
 
 ---
 
@@ -203,9 +205,16 @@ apps/backend/src/modules/
 | `POST` | `/auth/register` | Criar conta | ✅ **Funcionando** |
 | `POST` | `/auth/login` | Fazer login | ✅ **Funcionando** |
 | `POST` | `/auth/google` | Login Google | ✅ **Funcionando** (KAN-15) |
-| `POST` | `/auth/apple` | Login Apple | 🚧 **Preparado** (KAN-16) |
+| `POST` | `/auth/apple` | Login Apple | ✅ **Funcionando** (KAN-16) |
+| `POST` | `/auth/forgot-password` | Solicitar recuperação de senha | ✅ **Funcionando** (KAN-17) |
+| `POST` | `/auth/reset-password` | Redefinir senha com token | ✅ **Funcionando** (KAN-17) |
+| `GET` | `/admin/security/rate-limits` | Métricas de bloqueios (ADMIN) | ✅ **Funcionando** (KAN-18) |
 | `GET` | `/users/profile` | Perfil do usuário | ✅ **Funcionando** |
 | `GET` | `/health` | Health check | ✅ **Funcionando** |
+
+**Rate limiting (KAN-18)**: `register`, `login`, `google`, `apple`,
+`forgot-password` e `reset-password` têm limite de tentativas por IP e por
+identidade, com resposta `429` padronizada — ver `IA/RATE_LIMITING_SETUP.md`.
 
 ---
 
@@ -243,7 +252,7 @@ apps/backend/src/modules/
 
 ### **Próximos Passos Sugeridos:**
 1. **Configurar login social** (ver `SOCIAL_AUTH_SETUP.md`)
-2. **Implementar recuperação de senha**
+2. ~~Implementar recuperação de senha~~ — feito (KAN-17), ver `PASSWORD_RESET_SETUP.md`
 3. **Adicionar verificação de email**
 4. **Criar check-ins emocionais** (backend já tem estrutura)
 5. **Implementar diário pessoal** (backend já tem estrutura)

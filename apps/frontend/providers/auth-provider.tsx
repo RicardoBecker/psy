@@ -11,7 +11,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   googleLogin: (token: string) => Promise<void>;
-  appleLogin: (token: string) => Promise<void>;
+  appleLogin: (token: string, state: string, code: string, redirectUri: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -101,11 +101,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // 🍎 Login com Apple
-  const appleLogin = async (token: string) => {
+  // 🍎 Login com Apple. `state` (Code review PR #18, KAN-158, P1) vincula
+  // esta resposta ao desafio emitido por authApi.startAppleAuth(). `code`/
+  // `redirectUri` (KAN-158, re-review) permitem ao backend trocar o
+  // authorization code no endpoint oficial da Apple.
+  const appleLogin = async (token: string, state: string, code: string, redirectUri: string) => {
     setIsLoading(true);
     try {
-      const response = await authApi.appleLogin(token);
+      const response = await authApi.appleLogin(token, state, code, redirectUri);
       userStorage.set(response.user);
       setUser(response.user);
     } catch (error: any) {

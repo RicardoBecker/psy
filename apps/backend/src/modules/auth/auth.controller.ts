@@ -1,17 +1,34 @@
-import { Controller, Post, Body, UseGuards, Request, Res, ServiceUnavailableException } from '@nestjs/common';
-import { Response } from 'express';
+import { Controller, Post, Get, Body, UseGuards, Request, Req, Res } from '@nestjs/common';
+import { Request as ExpressRequest, Response } from 'express';
 import { AuthService } from './auth.service';
+import { AppleChallengeService } from './apple-challenge.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { SocialLoginDto } from './dto/social-login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { AppleLoginDto } from './dto/apple-login.dto';
 import { SkipCsrf } from '../../common/skip-csrf.decorator';
 import { setSessionCookies, clearSessionCookies } from '../../common/session-cookie';
+import { AuthRateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
+import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
+import {
+  setAppleChallengeCookie,
+  clearAppleChallengeCookie,
+  readAppleChallengeCookie,
+} from '../../common/apple-auth-challenge';
+
+const ONE_MINUTE_MS = 60_000;
 
 @Controller('auth')
+@UseGuards(AuthRateLimitGuard)
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly appleChallengeService: AppleChallengeService,
+  ) {}
 
   // 🔒 CR-05.4: sessão vive num cookie HttpOnly, não mais no corpo da
   // resposta — o JWT nunca fica acessível a JavaScript do navegador.
@@ -19,6 +36,7 @@ export class AuthController {
   // (o risco é "logar a vítima numa conta do atacante", ameaça distinta
   // e de impacto menor do que CSRF sobre sessão já autenticada).
   @SkipCsrf()
+  @RateLimit({ limit: 10, windowMs: ONE_MINUTE_MS })
   @Post('register')
   async register(
     @Body() registerDto: RegisterDto,
@@ -30,6 +48,7 @@ export class AuthController {
   }
 
   @SkipCsrf()
+  @RateLimit({ limit: 10, windowMs: ONE_MINUTE_MS })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   async login(
@@ -57,6 +76,7 @@ export class AuthController {
   // AuthService.loginWithGoogle verifica assinatura/issuer/audience/
   // expiração antes de confiar em qualquer claim dele.
   @SkipCsrf()
+  @RateLimit({ limit: 10, windowMs: ONE_MINUTE_MS })
   @Post('google')
   async googleLogin(
     @Body() dto: SocialLoginDto,
@@ -67,9 +87,67 @@ export class AuthController {
     return { user, csrfToken };
   }
 
-  // 🍎 Apple Sign In — desabilitado pelo mesmo motivo do Google acima.
+  // 🍎 Code review PR #18 (KAN-158, P1): gera state+nonce e guarda num
+  // cookie HttpOnly de 5min — o frontend chama isto ANTES de abrir o popup
+  // da Apple, e repassa os dois valores para AppleID.auth.init(). GET
+  // porque não muda estado persistido (só um cookie transitório) e por
+  // isso já é naturalmente isento de CSRF (CsrfGuard só age em métodos
+  // mutáveis).
+  @Get('apple/start')
+  async startAppleAuth(@Res({ passthrough: true }) res: Response) {
+    const { state, nonce, signedChallenge } = this.appleChallengeService.create();
+    setAppleChallengeCookie(res, signedChallenge);
+    return { state, nonce };
+  }
+
+  // 🍎 KAN-16: login com Apple. Mesmo contrato do Google acima — isento de
+  // CSRF (ainda não existe sessão), `token` é o identityToken assinado pela
+  // Apple. Code review PR #18 (KAN-158, P1): o cookie de desafio é sempre
+  // limpo (uso único) e seu `nonce` é o que AuthService.loginWithApple usa
+  // para provar que este token é resposta à tentativa que ESTE navegador
+  // iniciou, não um replay.
+  @SkipCsrf()
+  @RateLimit({ limit: 10, windowMs: ONE_MINUTE_MS })
   @Post('apple')
-  async appleLogin() {
-    throw new ServiceUnavailableException('Login com Apple não está disponível no momento.');
+  async appleLogin(
+    @Body() dto: AppleLoginDto,
+    @Req() req: ExpressRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const signedChallenge = readAppleChallengeCookie(req);
+    clearAppleChallengeCookie(res);
+    const { nonce } = this.appleChallengeService.verify(signedChallenge, dto.state);
+
+    const { user, access_token } = await this.authService.loginWithApple(
+      dto.token,
+      dto.code,
+      dto.redirectUri,
+      nonce,
+    );
+    const csrfToken = setSessionCookies(res, access_token);
+    return { user, csrfToken };
+  }
+
+  // 🔒 KAN-17: mesma resposta genérica sempre — não confirma nem nega que
+  // o e-mail existe (anti-enumeração de contas). Isento de CSRF: quem
+  // solicita isso não tem sessão nenhuma (nem própria, nem de vítima) para
+  // um atacante abusar.
+  @SkipCsrf()
+  @RateLimit({ limit: 5, windowMs: ONE_MINUTE_MS })
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.forgotPassword(dto.email);
+    return { message: 'Se o e-mail existir, enviaremos instruções de recuperação.' };
+  }
+
+  // 🔒 KAN-17: a prova de autorização aqui é o próprio token (só quem tem
+  // acesso à caixa de entrada do e-mail o recebeu) — não uma sessão, por
+  // isso isento de CSRF como os demais endpoints de entrada.
+  @SkipCsrf()
+  @RateLimit({ limit: 10, windowMs: ONE_MINUTE_MS })
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.token, dto.newPassword);
+    return { success: true };
   }
 }

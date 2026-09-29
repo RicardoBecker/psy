@@ -1,4 +1,5 @@
 // 🧩 UI Components - Componentes reutilizáveis da interface
+import { useId } from 'react';
 
 // 🔄 Loading Spinner Component
 export const LoadingSpinner = () => (
@@ -50,18 +51,26 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-export const Input: React.FC<InputProps> = ({ 
-  label, 
-  error, 
+export const Input: React.FC<InputProps> = ({
+  label,
+  error,
   className = '',
-  ...props 
+  id,
+  ...props
 }) => {
+  // Sem id explícito, gera um estável (useId) — label/input precisam estar
+  // associados via htmlFor/id para leitores de tela e para testes que
+  // navegam pelo formulário como um usuário (getByLabelText).
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
+
   return (
     <div className="space-y-1">
-      <label className="block text-sm font-medium text-gray-700">
+      <label htmlFor={inputId} className="block text-sm font-medium text-gray-700">
         {label}
       </label>
       <input
+        id={inputId}
         className={`w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 bg-white ${
           error ? 'border-red-500' : 'border-gray-300'
         } ${className}`}

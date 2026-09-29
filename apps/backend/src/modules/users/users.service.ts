@@ -79,6 +79,9 @@ export class UsersService {
         birthDate: true,
         isActive: true,
         createdAt: true,
+        // 🔒 KAN-17: JwtStrategy usa isto para invalidar tokens emitidos
+        // antes do último reset de senha — não é exposto em AuthenticatedUser.
+        passwordChangedAt: true,
       },
     });
   }

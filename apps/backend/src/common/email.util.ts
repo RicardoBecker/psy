@@ -7,3 +7,16 @@
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
+
+// 🔒 Code review PR #19 (KAN-156, P3): logs operacionais (ex.: falha de
+// envio de e-mail) não podem expor o endereço completo — este é um
+// produto de saúde emocional, e "quem solicitou recuperação de senha" já
+// é informação sensível por si só. Mantém só o suficiente para depurar um
+// domínio problemático (ex.: um provedor rejeitando tudo), nunca o
+// endereço completo. Exemplo: "pessoa@exemplo.com" → "p***@exemplo.com".
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!domain) return '***';
+  const maskedLocal = local.length <= 1 ? '*' : `${local[0]}***`;
+  return `${maskedLocal}@${domain}`;
+}

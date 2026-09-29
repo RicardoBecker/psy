@@ -1,10 +1,16 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from '../../common/types/auth.types';
 import { GoogleAuthProvider } from './providers/google.provider';
+import { AppleAuthProvider } from './providers/apple.provider';
+import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { SocialAuthService } from './social-auth.service';
+import { PasswordResetService } from './password-reset.service';
+import { buildPasswordResetEmail } from './password-reset-email';
+import { MailerService } from '../../common/mailer/mailer.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -12,8 +18,13 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private configService: ConfigService,
     private googleAuthProvider: GoogleAuthProvider,
+    private appleAuthProvider: AppleAuthProvider,
+    private appleTokenExchangeService: AppleTokenExchangeService,
     private socialAuthService: SocialAuthService,
+    private passwordResetService: PasswordResetService,
+    private mailerService: MailerService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -73,5 +84,67 @@ export class AuthService {
     const profile = await this.googleAuthProvider.verify(idToken);
     const user = await this.socialAuthService.resolveOrCreateUser(profile);
     return this.login(user);
+  }
+
+  // 🍎 KAN-16: mesmo princípio do Google — verifica o ID token da Apple
+  // antes de resolver/criar o usuário local. `expectedNonce` (Code review
+  // PR #18, KAN-158, P1) já foi extraído e validado quanto ao `state` pelo
+  // AppleChallengeService no controller.
+  //
+  // 🔒 KAN-158 (P2, re-review): a verificação local do identityToken prova
+  // só o que o CLIENTE afirma ter recebido. Antes de confiar nela, trocamos
+  // o `code` no endpoint oficial da Apple (AppleTokenExchangeService) — é a
+  // Apple, server-to-server, confirmando que emitiu essa autorização para
+  // este client_id, para este `sub`/`nonce`. Doc oficial:
+  // https://developer.apple.com/documentation/signinwithapple/verifying-a-user
+  // ("web apps must validate the authorization code using the Token
+  // validation endpoint").
+  async loginWithApple(idToken: string, code: string, redirectUri: string, expectedNonce: string) {
+    const profile = await this.appleAuthProvider.verify(idToken, expectedNonce);
+    await this.appleTokenExchangeService.exchangeAndVerify({
+      code,
+      redirectUri,
+      expectedSub: profile.providerUserId,
+      expectedNonce,
+    });
+    const user = await this.socialAuthService.resolveOrCreateUser(profile);
+    return this.login(user);
+  }
+
+  // 🔒 KAN-17: SEMPRE resolve com sucesso (void), exista ou não a conta —
+  // é o controller quem devolve a mesma mensagem genérica nos dois casos.
+  // Só envia e-mail de verdade quando existe conta ativa com aquele e-mail;
+  // contas social-only (sem passwordHash ainda) também recebem, porque
+  // definir uma senha aqui é um jeito legítimo de recuperar acesso.
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.usersService.findByEmail(email);
+    if (!user || !user.isActive) return;
+
+    const rawToken = await this.passwordResetService.createTokenForUser(user.id);
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
+    const { subject, html, text } = buildPasswordResetEmail(resetUrl);
+
+    await this.mailerService.send({ to: user.email, subject, html, text });
+  }
+
+  // 🔒 KAN-17: token inválido/expirado/já usado gera sempre a mesma
+  // BadRequestException genérica — não diferenciamos os três casos na
+  // resposta (evita dar pistas sobre o estado interno do token a quem
+  // estiver testando valores).
+  //
+  // 🔒 Code review PR #19 (KAN-156, P2): o hash é calculado AQUI, antes de
+  // consumeTokenAndUpdatePassword — bcrypt não toca o banco, então não
+  // precisa (nem deve) rodar dentro da transação que marca o token usado
+  // e grava a senha; só o que precisa ser atômico é a escrita.
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const consumed = await this.passwordResetService.consumeTokenAndUpdatePassword(
+      token,
+      passwordHash,
+    );
+    if (!consumed) {
+      throw new BadRequestException('Link inválido ou expirado.');
+    }
   }
 }
