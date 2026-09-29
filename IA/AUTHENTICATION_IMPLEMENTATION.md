@@ -206,6 +206,8 @@ apps/backend/src/modules/
 | `POST` | `/auth/login` | Fazer login | ✅ **Funcionando** |
 | `POST` | `/auth/google` | Login Google | ✅ **Funcionando** (KAN-15) |
 | `POST` | `/auth/apple` | Login Apple | ✅ **Funcionando** (KAN-16) |
+| `POST` | `/auth/forgot-password` | Solicitar recuperação de senha | ✅ **Funcionando** (KAN-17) |
+| `POST` | `/auth/reset-password` | Redefinir senha com token | ✅ **Funcionando** (KAN-17) |
 | `GET` | `/users/profile` | Perfil do usuário | ✅ **Funcionando** |
 | `GET` | `/health` | Health check | ✅ **Funcionando** |
 
@@ -245,7 +247,7 @@ apps/backend/src/modules/
 
 ### **Próximos Passos Sugeridos:**
 1. **Configurar login social** (ver `SOCIAL_AUTH_SETUP.md`)
-2. **Implementar recuperação de senha**
+2. ~~Implementar recuperação de senha~~ — feito (KAN-17), ver `PASSWORD_RESET_SETUP.md`
 3. **Adicionar verificação de email**
 4. **Criar check-ins emocionais** (backend já tem estrutura)
 5. **Implementar diário pessoal** (backend já tem estrutura)

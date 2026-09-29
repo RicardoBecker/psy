@@ -14,6 +14,8 @@ import { GoogleAuthProvider } from './providers/google.provider';
 import { AppleAuthProvider } from './providers/apple.provider';
 import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { SocialAuthService } from './social-auth.service';
+import { PasswordResetService } from './password-reset.service';
+import { MailerService } from '../../common/mailer/mailer.service';
 import { AppleChallengeService } from './apple-challenge.service';
 import { SESSION_COOKIE_NAME, CSRF_COOKIE_NAME } from '../../common/session-cookie';
 
@@ -39,6 +41,11 @@ describe('POST /auth/logout — encerra a sessão de verdade (CR-05.4)', () => {
         { provide: AppleTokenExchangeService, useValue: { exchangeAndVerify: jest.fn().mockResolvedValue(undefined) } },
         AppleChallengeService,
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
+        {
+          provide: PasswordResetService,
+          useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
+        },
+        { provide: MailerService, useValue: { send: jest.fn() } },
       ],
     }).compile();
 
@@ -106,6 +113,11 @@ describe('Token forjado não libera nada (CR-05.4)', () => {
         { provide: AppleTokenExchangeService, useValue: { exchangeAndVerify: jest.fn().mockResolvedValue(undefined) } },
         AppleChallengeService,
         { provide: SocialAuthService, useValue: { resolveOrCreateUser: jest.fn() } },
+        {
+          provide: PasswordResetService,
+          useValue: { createTokenForUser: jest.fn(), consumeTokenAndUpdatePassword: jest.fn() },
+        },
+        { provide: MailerService, useValue: { send: jest.fn() } },
       ],
     }).compile();
 
