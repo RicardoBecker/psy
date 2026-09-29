@@ -15,13 +15,39 @@ export interface RateLimitStoreOptions {
 // e-mail sempre diferente no corpo, por exemplo) cria uma entrada nova no
 // Map, para sempre — o próprio controle de abuso vira uma superfície de
 // DoS por exaustão de memória. Duas defesas independentes:
-//   1. Cardinalidade máxima com eviction FIFO — nunca deixa o Map crescer
-//      além de MAX_ENTRIES, não importa quantas identidades distintas um
-//      atacante enviar.
+//   1. Cardinalidade máxima — nunca deixa o Map crescer além de
+//      MAX_ENTRIES, não importa quantas identidades distintas um atacante
+//      enviar.
 //   2. Varredura periódica removendo entradas já expiradas — mantém o Map
 //      enxuto sob operação normal, não só no limite de capacidade.
+//
+// 🔒 KAN-159 (P2, re-review PR #20): a v1 usava eviction FIFO incondicional
+// — expulsava a entrada mais antiga do Map mesmo que ela estivesse
+// ATIVAMENTE bloqueada (count > limit, dentro da janela). Um atacante
+// gerando cardinalidade nova (IPs/identidades distintas) conseguia,
+// efetivamente, desbloquear a si mesmo: bastava saturar o Map para expulsar
+// sua PRÓPRIA entrada já bloqueada, que voltava como "primeira tentativa
+// livre" na próxima requisição — o oposto do que o rate limiter existe
+// para fazer. O teste anterior ("evicting the oldest entry (FIFO) to make
+// room") provava exatamente esse efeito, não o desprovava.
+//
+// v2: nunca expulsa uma entrada ainda dentro da janela (bloqueada ou não).
+// Ao saturar, primeiro tenta liberar espaço removendo entradas já
+// EXPIRADAS (sweepExpiredNow, oportunista além da varredura periódica); se
+// mesmo assim não há espaço — todas as MAX_ENTRIES entradas ainda são
+// válidas —, falha fechado: a nova identidade é tratada como bloqueada em
+// vez de expulsar alguém. Sob um ataque distribuído grande o bastante para
+// saturar o store com entradas genuinamente ativas, isso significa negar
+// identidades novas também — postura de segurança deliberada (a alternativa,
+// resetar o bloqueio de quem já está sendo limitado, é pior). Um store
+// externo compartilhado (Redis) é o caminho para erguer o teto de
+// MAX_ENTRIES sem esse trade-off; ver IA/RATE_LIMITING_SETUP.md.
 const DEFAULT_MAX_ENTRIES = 10_000;
 const DEFAULT_SWEEP_INTERVAL_MS = 60_000;
+// Não loga a cada rejeição por saturação (um atacante gerando cardinalidade
+// nova geraria um WARN por requisição) — agrega num intervalo mínimo entre
+// logs.
+const SATURATION_LOG_INTERVAL_MS = 60_000;
 
 // 🔒 KAN-18 (KAN-79): contador em memória, janela fixa. Sem Redis no
 // projeto hoje — suficiente para uma instância única; documentado como
@@ -38,6 +64,7 @@ export class RateLimitStore implements OnModuleInit, OnModuleDestroy {
   private sweepTimer: NodeJS.Timeout | null = null;
   private readonly maxEntries: number;
   private readonly sweepIntervalMs: number;
+  private lastSaturationLogAt = 0;
 
   // 🔒 `@Optional()` é o que permite este provider continuar sendo
   // injetado normalmente pelo Nest (RateLimitModule, testes que o listam
@@ -69,7 +96,13 @@ export class RateLimitStore implements OnModuleInit, OnModuleDestroy {
     const entry = this.hits.get(key);
 
     if (!entry || entry.resetAt <= now) {
-      this.setEntry(key, { count: 1, resetAt: now + windowMs });
+      const admitted = this.tryAdmitNewKey(key, { count: 1, resetAt: now + windowMs });
+      if (!admitted) {
+        // 🔒 KAN-159 (P2): capacidade esgotada com só entradas ainda
+        // válidas — falha fechado (nega a identidade nova) em vez de
+        // expulsar alguém que já está sendo rastreado/bloqueado.
+        return { blocked: true, retryAfterSeconds: Math.ceil(windowMs / 1000) };
+      }
       return { blocked: false, retryAfterSeconds: 0 };
     }
 
@@ -78,20 +111,30 @@ export class RateLimitStore implements OnModuleInit, OnModuleDestroy {
     return { blocked, retryAfterSeconds: Math.ceil((entry.resetAt - now) / 1000) };
   }
 
-  private setEntry(key: string, value: { count: number; resetAt: number }): void {
-    if (!this.hits.has(key) && this.hits.size >= this.maxEntries) {
-      // Map preserva ordem de inserção — a primeira chave iterada é a
-      // mais antiga. Eviction FIFO: simples, O(1), e suficiente como
-      // backstop de DoS (não precisa ser LRU de verdade para isso).
-      const oldestKey = this.hits.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.hits.delete(oldestKey);
-        this.logger.warn(
-          `RateLimitStore atingiu capacidade máxima (${this.maxEntries}) — entrada mais antiga descartada.`,
-        );
-      }
+  // Retorna false quando o store está saturado com entradas ainda válidas
+  // e não há espaço a liberar — chamador decide o que fazer (fail closed).
+  private tryAdmitNewKey(key: string, value: { count: number; resetAt: number }): boolean {
+    if (this.hits.size >= this.maxEntries) {
+      // Antes de recusar, tenta liberar espaço removendo o que já expirou
+      // — sob operação normal isso já reclama a maior parte da pressão sem
+      // nunca precisar recusar nada.
+      this.sweepExpiredNow();
+    }
+    if (this.hits.size >= this.maxEntries) {
+      this.logSaturation();
+      return false;
     }
     this.hits.set(key, value);
+    return true;
+  }
+
+  private logSaturation(): void {
+    const now = Date.now();
+    if (now - this.lastSaturationLogAt < SATURATION_LOG_INTERVAL_MS) return;
+    this.lastSaturationLogAt = now;
+    this.logger.warn(
+      `RateLimitStore em capacidade máxima (${this.maxEntries}) com todas as entradas ainda válidas — novas identidades sendo recusadas (fail closed) até haver espaço.`,
+    );
   }
 
   // Exposto para teste determinístico (sem depender de timers reais) e
