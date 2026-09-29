@@ -96,8 +96,10 @@ cd devOps && docker compose up
 - ✅ **Resultado:** Fluxo real do Google Identity Services; login efetivo
   quando `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` estão configurados
   (ver `IA/SOCIAL_AUTH_SETUP.md`)
-- 🚧 Na tela de login, clicar em "Continuar com Apple"
-- 🚧 **Resultado:** Ainda desabilitado (503) — pendente KAN-16
+- ✅ Na tela de login, clicar em "Continuar com Apple" (KAN-16)
+- ✅ **Resultado:** Fluxo real do Sign in with Apple JS (popup); login
+  efetivo quando `APPLE_CLIENT_ID`/`NEXT_PUBLIC_APPLE_CLIENT_ID` estão
+  configurados (ver `IA/SOCIAL_AUTH_SETUP.md`)
 
 ---
 
@@ -192,7 +194,7 @@ apps/backend/src/modules/
 | **Container** | Docker Compose | ✅ **Funcionando** |
 | **HTTP Client** | Axios | ✅ **Funcionando** |
 | **Validation** | class-validator | ✅ **Funcionando** |
-| **Social Auth** | Estrutura preparada | 🚧 **Aguarda config** |
+| **Social Auth** | Google (KAN-15) e Apple (KAN-16) implementados | ✅ **Aguarda credenciais reais por ambiente** |
 
 ---
 
@@ -203,7 +205,7 @@ apps/backend/src/modules/
 | `POST` | `/auth/register` | Criar conta | ✅ **Funcionando** |
 | `POST` | `/auth/login` | Fazer login | ✅ **Funcionando** |
 | `POST` | `/auth/google` | Login Google | ✅ **Funcionando** (KAN-15) |
-| `POST` | `/auth/apple` | Login Apple | 🚧 **Preparado** (KAN-16) |
+| `POST` | `/auth/apple` | Login Apple | ✅ **Funcionando** (KAN-16) |
 | `GET` | `/users/profile` | Perfil do usuário | ✅ **Funcionando** |
 | `GET` | `/health` | Health check | ✅ **Funcionando** |
 

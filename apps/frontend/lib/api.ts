@@ -109,9 +109,21 @@ export const authApi = {
     return response.data;
   },
 
+  // 🍎 Code review PR #18 (KAN-158, P1): busca o desafio state/nonce que o
+  // backend gera e guarda num cookie HttpOnly ANTES de abrir o popup da
+  // Apple — precisa ser repassado ao SDK (AppleID.auth.init) e depois
+  // devolvido em appleLogin para provar que a resposta é desta tentativa.
+  async startAppleAuth(): Promise<{ state: string; nonce: string }> {
+    const response = await api.get('/auth/apple/start');
+    return response.data;
+  },
+
   // 🍎 Login com Apple
-  async appleLogin(token: string): Promise<AuthResponse> {
-    const response = await api.post('/auth/apple', { token });
+  // 🔒 KAN-158 (P2, re-review PR #18): `code` e `redirectUri` são exigidos
+  // pelo backend para trocar o authorization code no endpoint oficial da
+  // Apple antes de confiar na identidade — ver apple-identity.ts.
+  async appleLogin(token: string, state: string, code: string, redirectUri: string): Promise<AuthResponse> {
+    const response = await api.post('/auth/apple', { token, state, code, redirectUri });
     return response.data;
   },
 

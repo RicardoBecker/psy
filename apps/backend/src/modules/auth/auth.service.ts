@@ -4,6 +4,8 @@ import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from '../../common/types/auth.types';
 import { GoogleAuthProvider } from './providers/google.provider';
+import { AppleAuthProvider } from './providers/apple.provider';
+import { AppleTokenExchangeService } from './providers/apple-token-exchange.service';
 import { SocialAuthService } from './social-auth.service';
 import * as bcrypt from 'bcrypt';
 
@@ -13,6 +15,8 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private googleAuthProvider: GoogleAuthProvider,
+    private appleAuthProvider: AppleAuthProvider,
+    private appleTokenExchangeService: AppleTokenExchangeService,
     private socialAuthService: SocialAuthService,
   ) {}
 
@@ -71,6 +75,31 @@ export class AuthService {
   // própria sessão — a partir daqui é indistinguível de um login comum.
   async loginWithGoogle(idToken: string) {
     const profile = await this.googleAuthProvider.verify(idToken);
+    const user = await this.socialAuthService.resolveOrCreateUser(profile);
+    return this.login(user);
+  }
+
+  // 🍎 KAN-16: mesmo princípio do Google — verifica o ID token da Apple
+  // antes de resolver/criar o usuário local. `expectedNonce` (Code review
+  // PR #18, KAN-158, P1) já foi extraído e validado quanto ao `state` pelo
+  // AppleChallengeService no controller.
+  //
+  // 🔒 KAN-158 (P2, re-review): a verificação local do identityToken prova
+  // só o que o CLIENTE afirma ter recebido. Antes de confiar nela, trocamos
+  // o `code` no endpoint oficial da Apple (AppleTokenExchangeService) — é a
+  // Apple, server-to-server, confirmando que emitiu essa autorização para
+  // este client_id, para este `sub`/`nonce`. Doc oficial:
+  // https://developer.apple.com/documentation/signinwithapple/verifying-a-user
+  // ("web apps must validate the authorization code using the Token
+  // validation endpoint").
+  async loginWithApple(idToken: string, code: string, redirectUri: string, expectedNonce: string) {
+    const profile = await this.appleAuthProvider.verify(idToken, expectedNonce);
+    await this.appleTokenExchangeService.exchangeAndVerify({
+      code,
+      redirectUri,
+      expectedSub: profile.providerUserId,
+      expectedNonce,
+    });
     const user = await this.socialAuthService.resolveOrCreateUser(profile);
     return this.login(user);
   }
