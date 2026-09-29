@@ -222,6 +222,44 @@ passa trivialmente.
 Ainda não está plugado em CI — é responsabilidade de `CR-06.4` em
 `IA/BACKLOG_CODE_REVIEW.md`. Até lá, é um passo manual antes de cada PR.
 
+## 🔎 CODE REVIEW E RESOLUÇÃO DE DIVERGÊNCIAS
+
+O PR e o respectivo card são a fonte de verdade da conversa técnica. O responsável
+pelo produto **não deve atuar como mensageiro** entre o agente que implementa e o
+agente que revisa.
+
+### Fluxo obrigatório
+
+1. Todo finding deve ser publicado no PR correspondente e conter prioridade,
+   localização, comportamento esperado, cenário reproduzível, impacto e direção
+   da correção.
+2. O implementador deve responder no próprio PR com a correção ou com uma
+   contestação técnica acompanhada de evidência verificável.
+3. Divergências não são decididas por opinião, autoridade ou afirmação de que
+   “foi corrigido”. A decisão deve se apoiar, nesta ordem, em:
+   - teste de regressão reproduzível;
+   - contrato ou critério de aceite da história;
+   - documentação oficial da tecnologia ou integração;
+   - comportamento observado em ambiente controlado.
+4. Toda correção de finding P0, P1 ou P2 deve incluir teste de regressão no nível
+   adequado. Concorrência, transações, migrations, integrações externas e
+   topologia de rede devem usar teste de integração ou infraestrutura real quando
+   mocks não conseguirem provar a invariável.
+5. CI verde é necessário, mas não substitui os critérios de aceite do review.
+   Um teste que apenas confirma o comportamento defeituoso não encerra o finding.
+6. O card permanece em **Correções de review** enquanto existir finding P0, P1 ou
+   P2 aberto. Ele só avança depois de novo review confirmar a correção e seus
+   testes.
+7. Aprovação, merge e conclusão no Jira são etapas separadas. Nenhuma delas deve
+   ser inferida somente porque houve commit de correção ou CI verde.
+
+### Contrato mínimo do teste de aceite
+
+O teste deve demonstrar primeiro o cenário que falhava, executar a ação pela
+interface pública mais próxima do uso real e comprovar o resultado esperado e os
+efeitos persistidos. Quando o risco envolver concorrência, o teste deve disparar
+operações realmente simultâneas contra o banco ou serviço utilizado em produção.
+
 ## 🚀 DEPLOYMENT PATTERNS
 1. **Environment Variables:** Sempre usar .env
 2. **Build Process:** Docker multi-stage
@@ -230,5 +268,5 @@ Ainda não está plugado em CI — é responsabilidade de `CR-06.4` em
 5. **Logs:** Estruturados e informativos
 
 ---
-**📅 Última atualização:** 6 de abril de 2026  
+**📅 Última atualização:** 28 de setembro de 2026
 **🤖 Para agentes IA:** SEMPRE seguir estes padrões ao modificar código

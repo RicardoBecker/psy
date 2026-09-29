@@ -202,7 +202,7 @@ describe('GET /auth/apple/start + POST /auth/apple — handshake state/nonce (KA
 
     expect(res.status).toBe(401);
     expect(res.body).not.toHaveProperty('user');
-    // Cookie de desafio ainda é limpo (uso único, mesmo em falha) — só 
+    // Cookie de desafio ainda é limpo (uso único, mesmo em falha) — só
     // a AUSÊNCIA de cookie de SESSÃO é o que importa aqui.
     const cookies = (res.headers['set-cookie'] as unknown as string[]) ?? [];
     expect(cookies.find((c) => c.startsWith('emotional_app_token='))).toBeUndefined();
@@ -225,7 +225,7 @@ describe('GET /auth/apple/start + POST /auth/apple — handshake state/nonce (KA
       .send({ token: 'token-com-email-nao-verificado', state });
 
     expect(res.status).toBe(401);
-    // Cookie de desafio ainda é limpo (uso único, mesmo em falha) — só 
+    // Cookie de desafio ainda é limpo (uso único, mesmo em falha) — só
     // a AUSÊNCIA de cookie de SESSÃO é o que importa aqui.
     const cookies = (res.headers['set-cookie'] as unknown as string[]) ?? [];
     expect(cookies.find((c) => c.startsWith('emotional_app_token='))).toBeUndefined();
